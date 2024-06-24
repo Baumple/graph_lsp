@@ -1,3 +1,6 @@
+import simplifile
+import pprint
+
 pub type StandardIO {
   StandardIO
 }
@@ -14,4 +17,12 @@ pub fn get_bytes(count: Int) -> String {
 
 pub fn get_line() -> String {
   prompt_input("")
+}
+
+const log_file = "/home/linusz/Desktop/text.txt"
+
+pub fn log(x) {
+  let assert Ok(_) =
+    simplifile.append(to: log_file, contents: pprint.format(x) <> "\n")
+  x
 }

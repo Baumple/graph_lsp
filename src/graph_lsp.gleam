@@ -1,22 +1,12 @@
 import gleam/erlang/process
 import gleam/int
-import gleam/io
-import gleam/option.{type Option, Some}
+import gleam/option.{type Option}
 import gleam/pair
 import gleam/result
 import gleam/string
-import pprint
-import rpc_types
-import simplifile
-import standard_io
-
-const log_file = "/home/linusz/Desktop/text.txt"
-
-fn log(x) {
-  let assert Ok(_) =
-    simplifile.append(to: log_file, contents: pprint.format(x) <> "\n")
-  x
-}
+import lsp
+import lsp_types
+import standard_io.{log}
 
 pub fn parse_content_length(line: String) -> Option(Int) {
   line
@@ -28,28 +18,31 @@ pub fn parse_content_length(line: String) -> Option(Int) {
   |> option.from_result
 }
 
-fn read_request() -> String {
-  let assert Some(content_length) =
-    standard_io.get_line()
-    |> parse_content_length
-    |> log
+fn initialize() -> Result(lsp_types.LspServer, lsp_types.LspError) {
+  lsp.read_lsp_message()
+  |> lsp.server_from_init
+}
 
-  // remove "\r\n"
-  standard_io.get_bytes(2)
-  let request =
-    standard_io.get_bytes(content_length)
-    |> log
-    |> rpc_types.from_json_request
-    |> log
-  ""
+/// Handles an error and TODO:sends the appropriate answer to standard out
+fn handle_error(lsp) {
+  case lsp {
+    Ok(lsp) -> lsp
+    Error(_) -> panic
+  }
+}
+
+fn loop(state: lsp_types.LspServer) {
+  let _lsp_message =
+    lsp.read_lsp_message()
+    |> handle_error
+
+  loop(state)
 }
 
 pub fn main() {
-  io.println("1")
-  let text =
-    read_request()
-    |> io.debug
+  initialize()
+  |> handle_error
+  |> loop
 
   process.sleep_forever()
-  Ok(Nil)
 }
