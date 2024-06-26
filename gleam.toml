@@ -1,5 +1,6 @@
 name = "graph_lsp"
 version = "1.0.0"
+gleam = ">= 0.32.0"
 
 # Fill out these fields if you intend to generate HTML documentation or publish
 # your project to the Hex package manager.
@@ -14,7 +15,6 @@ version = "1.0.0"
 
 [dependencies]
 gleam_stdlib = ">= 0.34.0 and < 2.0.0"
-glisten = ">= 3.0.0 and < 4.0.0"
 gleam_otp = ">= 0.10.0 and < 1.0.0"
 gleam_erlang = ">= 0.25.0 and < 1.0.0"
 gleam_json = ">= 2.0.0 and < 3.0.0"
