@@ -1,19 +1,19 @@
 import gleam/dynamic
 import gleam/int
-import gleam/io
 import gleam/json
 import gleam/option.{type Option, Some}
 import gleam/pair
 import gleam/result
 import gleam/string
+import pprint
 import standard_io
 
 pub type ErrorCode {
-  ParseError
-  InvalidRequest
-  MethodNotFound
-  InvalidParams
-  InternalError
+  ParseError(err: String)
+  InvalidRequest(err: String)
+  MethodNotFound(err: String)
+  InvalidParams(err: String)
+  InternalError(err: String)
 }
 
 fn parse_content_length(line: String) -> Option(Int) {
@@ -26,34 +26,36 @@ fn parse_content_length(line: String) -> Option(Int) {
   |> option.from_result
 }
 
-pub fn read_request() -> Result(RpcRequest, ErrorCode) {
+pub fn read_request() -> Result(RpcMessage, ErrorCode) {
   let assert Some(content_length) =
     standard_io.get_line()
     |> parse_content_length
 
+  // \r\n
   standard_io.get_bytes(2)
   standard_io.get_bytes(content_length)
-  |> from_json_request
-  |> result.replace_error(ParseError)
+  |> from_json
+  |> result.map_error(fn(err) { ParseError(pprint.format(err)) })
 }
 
 pub fn get_error_value(err: ErrorCode) -> Int {
   case err {
-    ParseError -> -32_700
-    InvalidRequest -> -32_600
-    MethodNotFound -> -32_601
-    InvalidParams -> -32_602
-    InternalError -> -32_603
+    ParseError(..) -> -32_700
+    InvalidRequest(..) -> -32_600
+    MethodNotFound(..) -> -32_601
+    InvalidParams(..) -> -32_602
+    InternalError(..) -> -32_603
   }
 }
 
-pub type RpcRequest {
+pub type RpcMessage {
   RpcRequest(
     rpc_version: String,
     method: String,
     params: Option(dynamic.Dynamic),
     id: RpcId,
   )
+  RpcResponse(rpc_version: String, res: RpcResult, id: RpcId)
 }
 
 pub type RpcId {
@@ -62,67 +64,47 @@ pub type RpcId {
 }
 
 pub type RpcResult {
-  RpcOk(value: String)
+  RpcOk(data: dynamic.Dynamic)
   RpcError(code: Int, message: String, data: Option(String))
 }
 
-pub type RpcResponse {
-  RpcResponse(rpc_version: String, res: RpcResult, id: RpcId)
-}
-
-pub fn new_response(res res: RpcResult, id id: RpcId) -> RpcResponse {
+pub fn new_response(res res: RpcResult, id id: RpcId) -> RpcMessage {
   RpcResponse(rpc_version: "2.0", res: res, id: id)
 }
 
-/// Converts a RpcResult into a json object
-fn result_to_json(res: RpcResult) -> #(String, json.Json) {
-  case res {
-    RpcOk(value) -> #("result", json.string(value))
-    RpcError(id, message, data) -> #(
-      "error",
-      [
-        #("id", json.int(id)),
-        #("message", json.string(message)),
-        #("data", json.nullable(data, of: json.string)),
-      ]
-        |> json.object,
-    )
-  }
-}
-
-fn id_to_json(id: RpcId) -> #(String, json.Json) {
-  #("id", case id {
-    StringId(id) -> json.string(id)
-    NumberId(id) -> json.int(id)
-  })
-}
-
-/// Converts a [RpcResponse] to a json string in order to be sent to the client
-pub fn to_json_response(rpc: RpcResponse) -> String {
-  json.object([
-    #("jsonrpc", json.string(rpc.rpc_version)),
-    result_to_json(rpc.res),
-    id_to_json(rpc.id),
-  ])
-  |> json.to_string
-}
-
-pub fn from_json_request(
-  request: String,
-) -> Result(RpcRequest, json.DecodeError) {
+fn from_json(message: String) -> Result(RpcMessage, json.DecodeError) {
   let id_decoder =
     dynamic.any([
       dynamic.decode1(StringId, dynamic.string),
       dynamic.decode1(NumberId, dynamic.int),
     ])
 
-  dynamic.decode4(
-    RpcRequest,
-    dynamic.field("jsonrpc", of: dynamic.string),
-    dynamic.field("method", of: dynamic.string),
-    dynamic.field("params", of: dynamic.optional(dynamic.dynamic)),
-    dynamic.field("id", of: id_decoder),
-  )
-  |> json.decode(request, _)
-  |> io.debug
+  let error_decoder =
+    dynamic.decode3(
+      RpcError,
+      dynamic.field("code", dynamic.int),
+      dynamic.field("message", dynamic.string),
+      dynamic.optional_field("data", dynamic.string),
+    )
+  let result_decoder = dynamic.decode1(RpcOk, dynamic.dynamic)
+
+  dynamic.any([
+    dynamic.decode4(
+      RpcRequest,
+      dynamic.field("jsonrpc", dynamic.string),
+      dynamic.field("method", dynamic.string),
+      dynamic.field("params", dynamic.optional(dynamic.dynamic)),
+      dynamic.field("id", id_decoder),
+    ),
+    dynamic.decode3(
+      RpcResponse,
+      dynamic.field("jsonrpc", dynamic.string),
+      dynamic.any([
+        dynamic.field("error", error_decoder),
+        dynamic.field("result", result_decoder),
+      ]),
+      dynamic.field("id", id_decoder),
+    ),
+  ])
+  |> json.decode(message, _)
 }

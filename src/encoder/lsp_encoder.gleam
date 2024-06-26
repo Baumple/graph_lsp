@@ -1,42 +1,61 @@
 import gleam/json
-import gleam/list
 import lsp_types as lsp
 
-pub fn encode_capabilities(
-  capabilities: List(lsp.Capability),
-) -> #(String, json.Json) {
-  #("capabilities", json.object(list.map(capabilities, encode_capability)))
+pub fn encode_server_info(server_info: lsp.ServerInfo) -> #(String, json.Json) {
+  #(
+    "serverInfo",
+    json.object([
+      #("name", json.string(server_info.name)),
+      #("version", json.string(server_info.version)),
+    ]),
+  )
 }
 
-fn encode_capability(capability: lsp.Capability) -> #(String, json.Json) {
-  case capability {
-    lsp.TextDocument(td_capabilities) -> #(
-      "textDocument",
-      json.object(td_capabilities |> list.map(encode_text_document_capability)),
-    )
-    lsp.Any(..) -> panic
-  }
+pub fn encode_capabilities(
+  capabilities: lsp.Capabilities,
+) -> #(String, json.Json) {
+  #(
+    "capabilities",
+    json.object([encode_text_document_capability(capabilities.text_document)]),
+  )
 }
 
 fn encode_text_document_capability(
-  capability: lsp.TextDocumentCapability,
+  td_capability: lsp.TextDocument,
 ) -> #(String, json.Json) {
-  case capability {
-    lsp.Completion(completion_item, completion_item_kind) -> #(
-      "completion",
-      json.object([
-        encode_completion_item(completion_item),
-        encode_completion_item_kind(completion_item_kind),
-      ]),
-    )
-    lsp.Hover(content_format, dynamic_registration) -> #(
-      "hover",
-      json.object([
-        #("contentFormat", json.array(from: content_format, of: json.string)),
-        #("dynamicRegistration", json.bool(dynamic_registration)),
-      ]),
-    )
-  }
+  #(
+    "textDocument",
+    json.object([
+      encode_text_document_completion(td_capability.completion),
+      encode_text_document_hover(td_capability.hover),
+    ]),
+  )
+}
+
+fn encode_text_document_hover(
+  hover: lsp.TextDocumentHover,
+) -> #(String, json.Json) {
+  #(
+    "hover",
+    json.object([
+      #(
+        "contentFormat",
+        json.array(from: hover.content_format, of: json.string),
+      ),
+    ]),
+  )
+}
+
+fn encode_text_document_completion(
+  completion: lsp.TextDocumentCompletion,
+) -> #(String, json.Json) {
+  #(
+    "completion",
+    json.object([
+      encode_completion_item_kind(completion.completion_item_kind),
+      encode_completion_item(completion.completion_item),
+    ]),
+  )
 }
 
 fn encode_completion_item(
@@ -45,15 +64,11 @@ fn encode_completion_item(
   #(
     "completionItem",
     json.object([
+      #("snippetSupport", json.bool(completion_item.snippet_support)),
       #(
         "commitCharactersSupport",
         json.bool(completion_item.commit_characters_support),
       ),
-      #(
-        "documentation_format",
-        json.array(from: completion_item.documentation_format, of: json.string),
-      ),
-      #("snippet_support", json.bool(completion_item.snippet_support)),
     ]),
   )
 }

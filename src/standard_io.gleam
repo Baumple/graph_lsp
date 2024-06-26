@@ -1,5 +1,5 @@
-import simplifile
 import pprint
+import simplifile
 
 pub type StandardIO {
   StandardIO
@@ -21,8 +21,21 @@ pub fn get_line() -> String {
 
 const log_file = "/home/linusz/Desktop/text.txt"
 
+const error_file = "/home/linusz/Desktop/error.txt"
+
+pub fn init_logger() {
+  let _ = simplifile.delete(log_file)
+  Nil
+}
+
 pub fn log(x) {
   let assert Ok(_) =
     simplifile.append(to: log_file, contents: pprint.format(x) <> "\n")
   x
+}
+
+pub fn log_error(x) {
+  let assert Ok(_) =
+    simplifile.append(to: error_file, contents: pprint.format(x) <> "\n")
+  panic
 }
