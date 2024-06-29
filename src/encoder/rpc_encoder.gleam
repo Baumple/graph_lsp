@@ -1,13 +1,17 @@
 import gleam/json
 import rpc_types
 import gleam/dynamic
+import standard_io
 
-pub fn encode_message(resp: rpc_types.RpcMessage, decoder: fn(dynamic.Dynamic) -> json.Json) {
+pub fn encode_message(
+  resp: rpc_types.RpcMessage,
+  decoder: fn(dynamic.Dynamic) -> json.Json,
+) {
   json.object([
     #("jsonrpc", json.string(resp.rpc_version)),
     case resp {
       rpc_types.RpcResponse(res: res, ..) -> encode_result(res, decoder)
-      _ -> panic as "RpcRequest not implemented"
+      _ -> standard_io.log_error_panic(resp)
     },
   ])
 }

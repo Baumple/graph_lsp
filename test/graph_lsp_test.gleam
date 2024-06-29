@@ -78,21 +78,18 @@ fn decode_hello(hello) -> Result(Hello, List(dynamic.DecodeError)) {
   dynamic.decode1(Hello, dynamic.field("val", dynamic.list(dynamic.int)))(hello)
 }
 
-pub fn decode_json_test_test() {
-  let assert Ok(json) = simplifile.read("test/test.json")
-  let assert Ok(_) = json.decode(from: json, using: decode_json_test)
-}
-
 pub fn decode_init_params_test() {
-  let json = simplifile.read("test/init.json") |> should.be_ok
+  let json =
+    simplifile.read("test/init.json")
+    |> should.be_ok
   let assert Ok(_) =
     json.decode(from: json, using: lsp_decoder.decode_init_params)
   Nil
 }
 
 import encoder/lsp_encoder
-import lsp
-import lsp_types
+import lsp/lsp
+import lsp/lsp/lsp_types
 
 pub fn encode_init_reponse_test() {
   let server =
@@ -114,4 +111,10 @@ pub fn encode_init_reponse_test() {
     ])
     |> json.to_string
   Nil
+}
+
+pub fn decode_init_test() {
+  let assert Ok(json) = simplifile.read("test/init.json")
+  json.decode(json, lsp_decoder.decode_init_params)
+  |> should.be_ok()
 }

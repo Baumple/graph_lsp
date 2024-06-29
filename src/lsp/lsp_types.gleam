@@ -1,13 +1,4 @@
-import rpc_types
-
-pub type LspError(a) {
-  RpcError(msg: String, rpc_types.ErrorCode(a))
-  InitializeNotReceived(msg: String)
-}
-
-pub fn new_init_not_received() -> LspError(String) {
-  InitializeNotReceived(msg: "Initialize method must be sent first.")
-}
+import rpc/rpc_types
 
 pub type LspServer {
   LspServer(

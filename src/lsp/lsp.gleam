@@ -1,15 +1,14 @@
 import decoder/lsp_decoder
 import encoder/lsp_encoder
-import gleam/dynamic
 import gleam/int
 import gleam/io
 import gleam/json
 import gleam/option
 import gleam/result
 import gleam/string
-import lsp_types
-import pprint
-import rpc_types
+import lsp/lsp_types
+import rpc/rpc_types
+import error
 import standard_io
 
 pub fn new_server(
@@ -26,8 +25,8 @@ pub fn new_server(
 }
 
 pub fn server_from_init(
-  init_message: Result(lsp_types.LspMessage(a), lsp_types.LspError(a)),
-) -> Result(lsp_types.LspServer, lsp_types.LspError(a)) {
+  init_message: Result(lsp_types.LspMessage(a), error.Error),
+) -> Result(lsp_types.LspServer, error.MethodError) {
   use init_message <- result.try(init_message)
 
   let server =
@@ -48,15 +47,16 @@ pub fn server_from_init(
         }
       _ -> Error(Nil)
     }
-    |> result.replace_error(lsp_types.new_init_not_received())
-  case server {
-    Ok(server) -> send_init_response(server)
-    _ -> Nil
-  }
+    |> result.replace_error(error.init_not_received())
+    |> result.map(fn(server) {
+      send_init_response(server)
+      server
+    })
+
   server
 }
 
-fn mes(json) {
+fn create_message(json) {
   "Content-Length: " <> int.to_string(string.length(json)) <> "\r\n\r\n" <> json
 }
 
@@ -73,39 +73,10 @@ fn send_init_response(server: lsp_types.LspServer) {
     ),
   ])
   |> json.to_string
-  |> mes
-  |> standard_io.log
+  |> create_message
   |> io.println
 }
 
-/// Converts an [RpcRequest] into an [LspRequest]
-pub fn lsp_from_rcp(
-  rpc: rpc_types.RpcMessage,
-) -> Result(lsp_types.LspMessage(a), List(dynamic.DecodeError)) {
-  case rpc {
-    rpc_types.RpcResponse(..) ->
-      panic as "Receving RpcResponse not yet implemented"
-    rpc_types.RpcRequest(method: method, params: params, ..) ->
-      case method {
-        "initialize" -> {
-          let params = option.to_result(params, []) |> standard_io.log
-          use params <- result.try(params)
-          use method <- result.try(lsp_decoder.decode_init_params(params))
-          Ok(lsp_types.LspRequest(rpc_request: rpc, method: method))
-        }
-        other -> panic as { "Method '" <> other <> "' not yet implemented" }
-      }
-  }
-}
-
-pub fn read_lsp_message() -> Result(
-  lsp_types.LspMessage(a),
-  lsp_types.LspError(b),
-) {
-  use request <- result.try(
-    rpc_types.read_request()
-    |> result.map_error(fn(err) { rpc_types.ParseError(err) }),
-  )
-  use request <- result.try(lsp_from_rcp(request) |> result.map_error(fn(err) { rpc_types.ParseError(err) }))
-  Ok(request)
+pub fn read_lsp_message() -> Result(lsp_types.LspMessage(a), error.DecodeError) {
+  use rpc_message <- result.try(rpc.read_rpc_message())
 }

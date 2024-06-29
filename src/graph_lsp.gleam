@@ -3,10 +3,12 @@ import gleam/option.{type Option}
 import gleam/pair
 import gleam/result
 import gleam/string
-import lsp
-import lsp_types
+import lsp/lsp
+import lsp/lsp_types
 import pprint
 import standard_io
+import error
+import gleam/erlang/process
 
 pub fn parse_content_length(line: String) -> Option(Int) {
   line
@@ -18,7 +20,7 @@ pub fn parse_content_length(line: String) -> Option(Int) {
   |> option.from_result
 }
 
-fn initialize() -> Result(lsp_types.LspServer, lsp_types.LspError) {
+fn initialize() -> Result(lsp_types.LspServer, error.Error) {
   lsp.read_lsp_message()
   |> lsp.server_from_init
 }
@@ -27,7 +29,7 @@ fn initialize() -> Result(lsp_types.LspServer, lsp_types.LspError) {
 fn handle_error(lsp) {
   case lsp {
     Ok(lsp) -> lsp
-    Error(err) -> standard_io.log_error(err)
+    Error(err) -> standard_io.log_error_panic(err)
   }
 }
 
@@ -37,20 +39,16 @@ fn loop(state: lsp_types.LspServer) {
     |> handle_error
 
   case lsp_message {
-    lsp_types.LspRequest(_, method) ->
-      case method {
-        other ->
-          panic as { "'" <> pprint.format(other) <> "' not yet implemented" }
-      }
     lsp_types.LspResponse(..) -> loop(state)
+    lsp_types.LspRequest(_, _) -> loop(state)
   }
 
   loop(state)
 }
 
 pub fn main() {
-  standard_io.init_logger()
   initialize()
   |> handle_error
   |> loop
+  process.sleep_forever()
 }
