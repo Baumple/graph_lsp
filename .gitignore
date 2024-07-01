@@ -1,2 +1,5 @@
 build
 result
+test.gp
+erl_crash.dump
+./github

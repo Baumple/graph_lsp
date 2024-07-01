@@ -8,18 +8,14 @@ const method_not_found = -32_601
 const initialize_not_received = -32_000
 
 pub type Error {
-  DecodeError(code: Int, error: DecodeError)
   MethodError(code: Int, error: MethodError)
-}
-
-pub type DecodeError {
-  DecodeMessageError(msg: String, error: json.DecodeError)
-  DecodeParamsError(msg: String, error: dynamic.DecodeErrors)
+  DecodeMessageError(code: Int, msg: String)
 }
 
 pub type MethodError {
   InitializeNotReceived(code: Int, msg: String)
   UnimplementedMethod(code: Int, msg: String)
+  DecodeParamsError(code: Int, msg: String)
 }
 
 // TODO: Maybe give received message as parameter
