@@ -21,6 +21,9 @@ pub type LspMethod {
     capabilities: Capabilities,
   )
   InitializeResult
+  Initialized
+
+  UnimplementedMethod(name: String)
 }
 
 pub type LspMessage(a) {

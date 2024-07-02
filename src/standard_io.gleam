@@ -1,41 +1,23 @@
-import pprint
-import simplifile
-import gleam/io
 
+/// IO devices for erlang
 pub type StandardIO {
   StandardIO
 }
 
+/// get `count` chars fom io_device with given `prompt` and return input
 @external(erlang, "io", "get_chars")
 pub fn get_chars(io_device: StandardIO, prompt: String, count: Int) -> String
 
+/// `Prompt` the user for input and read entire line from stdin
 @external(erlang, "io", "get_line")
 pub fn prompt_input(prompt: String) -> String
 
+/// Read `count` bytes from stdin
 pub fn get_bytes(count: Int) -> String {
   get_chars(StandardIO, "", count)
 }
 
+/// Read an entire line from stdin (no prompt)
 pub fn get_line() -> String {
   prompt_input("")
-}
-
-const log_file = "/home/linusz/Desktop/text.txt"
-
-pub fn init_logger() {
-  let _ = simplifile.delete(log_file)
-  Nil
-}
-
-pub fn log_error(x) {
-  let f = pprint.format(x) <> "\n"
-  io.println_error(f)
-  x
-}
-
-pub fn log_error_panic(x) {
-  let f = pprint.format(x) <> "\n"
-  io.println_error(f <> "\n")
-  let assert Ok(_) = simplifile.append(log_file, f)
-  panic as f
 }

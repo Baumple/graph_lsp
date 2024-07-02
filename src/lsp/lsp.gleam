@@ -107,7 +107,14 @@ fn parse_request(
 
       Ok(lsp_types.LspRequest(rpc_request: rpc, method: method))
     }
-    _ -> Error(error.method_not_found(method))
+
+    "initialized" -> Ok(lsp_types.LspRequest(rpc, lsp_types.Initialized))
+
+    _ ->
+      Ok(lsp_types.LspRequest(
+        rpc_request: rpc,
+        method: lsp_types.UnimplementedMethod(name: method),
+      ))
   }
 }
 

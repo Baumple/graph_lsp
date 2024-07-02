@@ -6,7 +6,7 @@ pub type RpcMessage {
     rpc_version: String,
     method: String,
     params: Option(dynamic.Dynamic),
-    id: RpcId,
+    id: Option(RpcId),
   )
   Response(rpc_version: String, res: RpcResult, id: RpcId)
 }

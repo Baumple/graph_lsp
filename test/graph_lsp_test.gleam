@@ -66,7 +66,7 @@ pub type JsonTest {
   JsonTest(hello: Hello)
 }
 
-fn decode_json_test(json) -> Result(JsonTest, List(dynamic.DecodeError)) {
+pub fn decode_json_test(json) -> Result(JsonTest, List(dynamic.DecodeError)) {
   dynamic.decode1(JsonTest, dynamic.field("hello", decode_hello))(json)
 }
 
@@ -89,7 +89,7 @@ pub fn decode_init_params_test() {
 
 import encoder/lsp_encoder
 import lsp/lsp
-import lsp/lsp/lsp_types
+import lsp/lsp_types
 
 pub fn encode_init_reponse_test() {
   let server =

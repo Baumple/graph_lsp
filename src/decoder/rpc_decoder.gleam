@@ -2,6 +2,7 @@ import error
 import gleam/dynamic
 import gleam/json
 import gleam/result
+import logging
 import rpc/rpc_types
 
 pub fn decode_rpc_message(json_message: String) {
@@ -26,7 +27,7 @@ pub fn decode_rpc_message(json_message: String) {
       dynamic.field("jsonrpc", dynamic.string),
       dynamic.field("method", dynamic.string),
       dynamic.field("params", dynamic.optional(dynamic.dynamic)),
-      dynamic.field("id", id_decoder),
+      dynamic.optional_field("id", id_decoder),
     ),
     dynamic.decode3(
       rpc_types.Response,
@@ -39,5 +40,8 @@ pub fn decode_rpc_message(json_message: String) {
     ),
   ])
   |> json.decode(json_message, _)
-  |> result.map_error(error.decode_rpc_error)
+  |> result.map_error(fn(err) {
+    logging.log_to_file(json_message)
+    error.decode_rpc_error(err)
+  })
 }
