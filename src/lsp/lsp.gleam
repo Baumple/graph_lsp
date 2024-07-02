@@ -1,15 +1,16 @@
 import decoder/lsp_decoder
 import encoder/lsp_encoder
+import error
+import gleam/dynamic
 import gleam/int
 import gleam/io
 import gleam/json
-import gleam/option
+import gleam/option.{type Option}
 import gleam/result
 import gleam/string
 import lsp/lsp_types
+import rpc/rpc
 import rpc/rpc_types
-import error
-import standard_io
 
 pub fn new_server(
   root_path root_path: String,
@@ -26,7 +27,7 @@ pub fn new_server(
 
 pub fn server_from_init(
   init_message: Result(lsp_types.LspMessage(a), error.Error),
-) -> Result(lsp_types.LspServer, error.MethodError) {
+) -> Result(lsp_types.LspServer, error.Error) {
   use init_message <- result.try(init_message)
 
   let server =
@@ -77,6 +78,41 @@ fn send_init_response(server: lsp_types.LspServer) {
   |> io.println
 }
 
-pub fn read_lsp_message() -> Result(lsp_types.LspMessage(a), error.DecodeError) {
+fn rpc_to_lsp(
+  rpc: rpc_types.RpcMessage,
+) -> Result(lsp_types.LspMessage(a), error.Error) {
+  case rpc {
+    rpc_types.Response(..) -> Ok(lsp_types.LspResponse(rpc))
+    rpc_types.Request(method: method, params: params, ..) ->
+      parse_request(rpc, method, params)
+  }
+}
+
+fn parse_request(
+  rpc: rpc_types.RpcMessage,
+  method: String,
+  params: Option(dynamic.Dynamic),
+) -> Result(lsp_types.LspMessage(a), error.Error) {
+  case method {
+    "initialize" -> {
+      use params <- result.try(option.to_result(
+        params,
+        error.missing_parameters(),
+      ))
+
+      use method <- result.try(
+        lsp_decoder.decode_init_params(params)
+        |> result.map_error(error.decode_params_error),
+      )
+
+      Ok(lsp_types.LspRequest(rpc_request: rpc, method: method))
+    }
+    _ -> Error(error.method_not_found(method))
+  }
+}
+
+pub fn read_lsp_message() -> Result(lsp_types.LspMessage(a), error.Error) {
   use rpc_message <- result.try(rpc.read_rpc_message())
+  use lsp_message <- result.try(rpc_to_lsp(rpc_message))
+  Ok(lsp_message)
 }

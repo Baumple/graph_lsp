@@ -1,5 +1,5 @@
 import gleam/json
-import rpc_types
+import rpc/rpc_types
 import gleam/dynamic
 import standard_io
 
@@ -10,7 +10,7 @@ pub fn encode_message(
   json.object([
     #("jsonrpc", json.string(resp.rpc_version)),
     case resp {
-      rpc_types.RpcResponse(res: res, ..) -> encode_result(res, decoder)
+      rpc_types.Response(res: res, ..) -> encode_result(res, decoder)
       _ -> standard_io.log_error_panic(resp)
     },
   ])

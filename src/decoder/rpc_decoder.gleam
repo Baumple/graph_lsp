@@ -1,8 +1,8 @@
-import gleam/json
-import rpc/rpc_types
-import gleam/result
-import gleam/dynamic
 import error
+import gleam/dynamic
+import gleam/json
+import gleam/result
+import rpc/rpc_types
 
 pub fn decode_rpc_message(json_message: String) {
   let id_decoder =
@@ -22,14 +22,14 @@ pub fn decode_rpc_message(json_message: String) {
 
   dynamic.any([
     dynamic.decode4(
-      rpc_types.RpcRequest,
+      rpc_types.Request,
       dynamic.field("jsonrpc", dynamic.string),
       dynamic.field("method", dynamic.string),
       dynamic.field("params", dynamic.optional(dynamic.dynamic)),
       dynamic.field("id", id_decoder),
     ),
     dynamic.decode3(
-      rpc_types.RpcResponse,
+      rpc_types.Response,
       dynamic.field("jsonrpc", dynamic.string),
       dynamic.any([
         dynamic.field("error", error_decoder),
@@ -39,7 +39,5 @@ pub fn decode_rpc_message(json_message: String) {
     ),
   ])
   |> json.decode(json_message, _)
-  |> result.map_error(fn(err) {
-      error.DecodeMessageError(msg: "Failed to parse rpc message", error: err)
-  })
+  |> result.map_error(error.decode_rpc_error)
 }

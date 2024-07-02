@@ -2,13 +2,13 @@ import gleam/dynamic
 import gleam/option.{type Option}
 
 pub type RpcMessage {
-  RpcRequest(
+  Request(
     rpc_version: String,
     method: String,
     params: Option(dynamic.Dynamic),
     id: RpcId,
   )
-  RpcResponse(rpc_version: String, res: RpcResult, id: RpcId)
+  Response(rpc_version: String, res: RpcResult, id: RpcId)
 }
 
 pub type RpcId {
