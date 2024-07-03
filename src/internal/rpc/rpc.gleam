@@ -1,12 +1,12 @@
-import decoder/rpc_decoder
 import error
 import gleam/int
 import gleam/option.{type Option, Some}
 import gleam/pair
 import gleam/result
 import gleam/string
-import rpc/rpc_types
-import standard_io
+import internal/decoder/rpc_decoder
+import internal/rpc/rpc_types
+import internal/standard_io
 
 pub fn new_response(
   res res: rpc_types.RpcResult,
@@ -15,7 +15,7 @@ pub fn new_response(
   rpc_types.Response(rpc_version: "2.0", res: res, id: id)
 }
 
-fn parse_content_length(line: String) -> Option(Int) {
+pub fn parse_content_length(line: String) -> Option(Int) {
   line
   |> string.trim
   |> string.split_once(": ")

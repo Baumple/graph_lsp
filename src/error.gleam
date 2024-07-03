@@ -26,14 +26,17 @@ pub fn init_not_received() -> Error {
 }
 
 pub fn missing_parameters() -> Error {
-  MissingParameters(parse_error_code, "Method expected parameters but got none")
+  MissingParameters(
+    parse_error_code,
+    "Method expected parameters but found none",
+  )
 }
 
 pub fn decode_rpc_error(err) -> Error {
   DecodeRpcError(parse_error_code, "Could not parse rpc message", err)
 }
 
-pub fn decode_params_error(err: dynamic.DecodeErrors) {
+pub fn decode_params_error(err: dynamic.DecodeErrors) -> Error {
   DecodeParamsError(
     code: parse_error_code,
     msg: "Could not parse method params",

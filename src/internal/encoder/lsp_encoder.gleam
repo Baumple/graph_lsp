@@ -1,7 +1,10 @@
 import gleam/json
+import lsp/capabilities
 import lsp/lsp_types
 
-pub fn encode_server_info(server_info: lsp_types.ServerInfo) -> #(String, json.Json) {
+pub fn encode_server_info(
+  server_info: lsp_types.ServerInfo,
+) -> #(String, json.Json) {
   #(
     "serverInfo",
     json.object([
@@ -12,7 +15,7 @@ pub fn encode_server_info(server_info: lsp_types.ServerInfo) -> #(String, json.J
 }
 
 pub fn encode_capabilities(
-  capabilities: lsp_types.Capabilities,
+  capabilities: capabilities.Capabilities,
 ) -> #(String, json.Json) {
   #(
     "capabilities",
@@ -21,7 +24,7 @@ pub fn encode_capabilities(
 }
 
 fn encode_text_document_capability(
-  td_capability: lsp_types.TextDocument,
+  td_capability: capabilities.TextDocument,
 ) -> #(String, json.Json) {
   #(
     "textDocument",
@@ -33,7 +36,7 @@ fn encode_text_document_capability(
 }
 
 fn encode_text_document_hover(
-  hover: lsp_types.TextDocumentHover,
+  hover: capabilities.TextDocumentHover,
 ) -> #(String, json.Json) {
   #(
     "hover",
@@ -47,7 +50,7 @@ fn encode_text_document_hover(
 }
 
 fn encode_text_document_completion(
-  completion: lsp_types.TextDocumentCompletion,
+  completion: capabilities.TextDocumentCompletion,
 ) -> #(String, json.Json) {
   #(
     "completion",
@@ -59,7 +62,7 @@ fn encode_text_document_completion(
 }
 
 fn encode_completion_item(
-  completion_item: lsp_types.CompletionItem,
+  completion_item: capabilities.CompletionItem,
 ) -> #(String, json.Json) {
   #(
     "completionItem",
@@ -74,7 +77,7 @@ fn encode_completion_item(
 }
 
 fn encode_completion_item_kind(
-  item_kind: lsp_types.CompletionItemKind,
+  item_kind: capabilities.CompletionItemKind,
 ) -> #(String, json.Json) {
   #(
     "completionItemKind",

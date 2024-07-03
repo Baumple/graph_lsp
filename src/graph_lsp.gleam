@@ -1,24 +1,9 @@
 import error
 import gleam/erlang/process
-import gleam/int
 import gleam/io
-import gleam/option.{type Option}
-import gleam/pair
-import gleam/result
-import gleam/string
 import logging
 import lsp/lsp
 import lsp/lsp_types
-
-pub fn parse_content_length(line: String) -> Option(Int) {
-  line
-  |> string.trim
-  |> string.split_once(": ")
-  |> result.unwrap(or: #("", ""))
-  |> pair.second
-  |> int.parse
-  |> option.from_result
-}
 
 fn initialize() -> Result(lsp_types.LspServer, error.Error) {
   lsp.read_lsp_message()
@@ -33,33 +18,33 @@ fn handle_error(res) {
   }
 }
 
-fn loop(state: lsp_types.LspServer) {
+fn loop(server_state: lsp_types.LspServer) {
   let lsp_message =
     lsp.read_lsp_message()
     |> handle_error
 
   case lsp_message {
-    lsp_types.LspResponse(..) -> state
+    lsp_types.LspResponse(..) -> server_state
     lsp_types.LspRequest(_, method) ->
-      handle_request(method, state) |> handle_error
+      handle_request(method, server_state) |> handle_error
   }
   |> loop
 }
 
 fn handle_request(
   method: lsp_types.LspMethod,
-  state: lsp_types.LspServer,
+  server_state: lsp_types.LspServer,
 ) -> Result(lsp_types.LspServer, error.Error) {
   case method {
-    lsp_types.Initialized -> {
+    lsp_types.Initialized(..) -> {
       io.println_error("Connection established successfully")
-      Ok(state)
+      Ok(server_state)
     }
-    lsp_types.UnimplementedMethod(method) -> {
+    lsp_types.Unimplemented(method) -> {
       logging.log_error_panic("Method '" <> method <> "' not yet implemented.")
       Error(error.method_not_found(method))
     }
-    _ -> Ok(state)
+    _ -> Ok(server_state)
   }
 }
 

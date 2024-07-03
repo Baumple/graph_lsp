@@ -3,7 +3,7 @@ import gleam/dynamic
 import gleam/json
 import gleam/result
 import logging
-import rpc/rpc_types
+import internal/rpc/rpc_types
 
 pub fn decode_rpc_message(json_message: String) {
   let id_decoder =

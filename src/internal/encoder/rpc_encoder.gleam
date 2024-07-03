@@ -1,5 +1,5 @@
 import gleam/json
-import rpc/rpc_types
+import internal/rpc/rpc_types
 import gleam/dynamic
 import logging
 

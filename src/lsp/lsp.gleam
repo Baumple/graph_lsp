@@ -1,21 +1,23 @@
-import decoder/lsp_decoder
-import encoder/lsp_encoder
 import error
 import gleam/dynamic
 import gleam/int
 import gleam/io
 import gleam/json
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import internal/decoder/lsp_decoder
+import internal/encoder/lsp_encoder
+import internal/rpc/rpc
+import internal/rpc/rpc_types
+import lsp/capabilities
 import lsp/lsp_types
-import rpc/rpc
-import rpc/rpc_types
+import lsp/text_document
 
 pub fn new_server(
   root_path root_path: String,
   root_uri root_uri: String,
-  capabilities capabilities: lsp_types.Capabilities,
+  capabilities capabilities: capabilities.Capabilities,
 ) {
   lsp_types.LspServer(
     root_path: root_path,
@@ -26,7 +28,7 @@ pub fn new_server(
 }
 
 pub fn server_from_init(
-  init_message: Result(lsp_types.LspMessage(a), error.Error),
+  init_message: Result(lsp_types.LspMessage, error.Error),
 ) -> Result(lsp_types.LspServer, error.Error) {
   use init_message <- result.try(init_message)
 
@@ -34,7 +36,8 @@ pub fn server_from_init(
     case init_message {
       lsp_types.LspRequest(_, lsp_method) ->
         case lsp_method {
-          lsp_types.InitializeMethod(
+          lsp_types.Initialize(
+            name: _,
             root_path: root_path,
             root_uri: root_uri,
             capabilities: capabilities,
@@ -48,13 +51,36 @@ pub fn server_from_init(
         }
       _ -> Error(Nil)
     }
-    |> result.replace_error(error.init_not_received())
-    |> result.map(fn(server) {
-      send_init_response(server)
-      server
-    })
+    |> result.map(send_init_response)
 
-  server
+  use initialize <- result.try(read_lsp_message())
+  case
+    expect_request(initialize)
+    |> method_to_be("initialized")
+  {
+    Ok(..) -> server
+    Error(..) -> Error(Nil)
+  }
+  |> result.replace_error(error.init_not_received())
+}
+
+pub fn expect_request(
+  message: lsp_types.LspMessage,
+) -> Option(lsp_types.LspMethod) {
+  case message {
+    lsp_types.LspRequest(method: method, ..) -> Some(method)
+    _ -> None
+  }
+}
+
+pub fn method_to_be(
+  method: Option(lsp_types.LspMethod),
+  expected: String,
+) -> Result(lsp_types.LspMethod, Nil) {
+  case method {
+    Some(method) if method.name == expected -> Ok(method)
+    _ -> Error(Nil)
+  }
 }
 
 fn create_message(json) {
@@ -76,11 +102,13 @@ fn send_init_response(server: lsp_types.LspServer) {
   |> json.to_string
   |> create_message
   |> io.println
+
+  server
 }
 
 fn rpc_to_lsp(
   rpc: rpc_types.RpcMessage,
-) -> Result(lsp_types.LspMessage(a), error.Error) {
+) -> Result(lsp_types.LspMessage, error.Error) {
   case rpc {
     rpc_types.Response(..) -> Ok(lsp_types.LspResponse(rpc))
     rpc_types.Request(method: method, params: params, ..) ->
@@ -92,7 +120,7 @@ fn parse_request(
   rpc: rpc_types.RpcMessage,
   method: String,
   params: Option(dynamic.Dynamic),
-) -> Result(lsp_types.LspMessage(a), error.Error) {
+) -> Result(lsp_types.LspMessage, error.Error) {
   case method {
     "initialize" -> {
       use params <- result.try(option.to_result(
@@ -108,17 +136,37 @@ fn parse_request(
       Ok(lsp_types.LspRequest(rpc_request: rpc, method: method))
     }
 
-    "initialized" -> Ok(lsp_types.LspRequest(rpc, lsp_types.Initialized))
+    "initialized" -> Ok(lsp_types.LspRequest(rpc, lsp_types.new_initialized()))
+
+    "textDocument/" <> td_method -> parse_td_method(rpc, td_method, params)
 
     _ ->
       Ok(lsp_types.LspRequest(
         rpc_request: rpc,
-        method: lsp_types.UnimplementedMethod(name: method),
+        method: lsp_types.Unimplemented(name: method),
       ))
   }
 }
 
-pub fn read_lsp_message() -> Result(lsp_types.LspMessage(a), error.Error) {
+/// Parses a textDocument submethod
+fn parse_td_method(
+  rpc: rpc_types.RpcMessage,
+  td_method: String,
+  params: Option(dynamic.Dynamic),
+) -> Result(lsp_types.LspMessage, error.Error) {
+  case td_method {
+    "didSave" -> {
+      use params <- result.try(text_document.decode_did_save(params))
+      Ok(lsp_types.LspRequest(
+        rpc_request: rpc,
+        method: lsp_types.new_did_save(params),
+      ))
+    }
+    _ -> error.method_not_found("textDocument/" <> td_method) |> Error
+  }
+}
+
+pub fn read_lsp_message() -> Result(lsp_types.LspMessage, error.Error) {
   use rpc_message <- result.try(rpc.read_rpc_message())
   use lsp_message <- result.try(rpc_to_lsp(rpc_message))
   Ok(lsp_message)
