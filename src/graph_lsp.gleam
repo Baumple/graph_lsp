@@ -40,11 +40,10 @@ fn handle_request(
       io.println_error("Connection established successfully")
       Ok(server_state)
     }
-    lsp_types.Unimplemented(method) -> {
-      logging.log_error_panic("Method '" <> method <> "' not yet implemented.")
-      Error(error.method_not_found(method))
+    lsp_types.DidSave(name: name, document_ident: document_ident) -> {
+      Ok(server_state)
     }
-    _ -> Ok(server_state)
+    lsp_types.Initialize(name: name, ..) -> Error(error.unexpected_method(name))
   }
 }
 

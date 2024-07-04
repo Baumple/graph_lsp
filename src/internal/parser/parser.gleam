@@ -1,15 +1,52 @@
-import gleam/option
-import gleeunit/should
-import internal/rpc/rpc
+import error
+import gleam/option.{type Option, None}
+import gleam/string
+import gleam/bool
+import simplifile
 
-pub fn parse_content_length_test() {
-  let parse = rpc.parse_content_length
-  parse("Content-Length: 100\n")
-  |> should.equal(option.Some(100))
+pub type Lexer {
+  Lexer(data: String, data_length: Int, cursor: Int)
+}
 
-  parse("Content-Length")
-  |> should.be_none
+pub fn new_lexer(data: String) -> Lexer {
+  Lexer(data, string.length(data), 0)
+}
 
-  parse("")
-  |> should.be_none
+pub type Token {
+  Ident(text: String)
+  Arrow(text: String)
+  Number(text: String, value: Int)
+  Bar(text: String)
+  EOF
+}
+
+fn has_tokens(lexer: Lexer) -> Bool {
+  lexer.cursor < lexer.data_length
+}
+
+fn skip_whitespace(lexer: Lexer) -> Lexer {
+  case string.pop_grapheme(lexer.data) {
+    Ok(#(" ", rest)) | Ok(#("\t", rest)) -> {
+      skip_whitespace(Lexer(..lexer, data: rest, cursor: lexer.cursor + 1))
+    }
+    _ -> lexer
+  }
+}
+
+pub fn next_token(lexer: Lexer) -> Option(Token) {
+  use <- bool.guard(when: has_tokens(lexer), return: None)
+}
+
+pub fn tokens_to_list(lexer: Lexer) -> List(Token) {
+  todo
+}
+
+pub fn parse_file(uri: String) -> Result(List(String), error.Error) {
+  case simplifile.read(uri) {
+    Ok(text) -> {
+      let tokens = new_lexer(text) |> tokens_to_list
+      todo
+    }
+    Error(err) -> Error(error.io_error("Could not read updated file", err))
+  }
 }

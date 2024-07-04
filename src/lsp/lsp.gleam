@@ -140,11 +140,7 @@ fn parse_request(
 
     "textDocument/" <> td_method -> parse_td_method(rpc, td_method, params)
 
-    _ ->
-      Ok(lsp_types.LspRequest(
-        rpc_request: rpc,
-        method: lsp_types.Unimplemented(name: method),
-      ))
+    _ -> Error(error.method_not_found(method))
   }
 }
 

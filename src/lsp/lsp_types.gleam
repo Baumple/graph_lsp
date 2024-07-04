@@ -2,14 +2,6 @@ import internal/rpc/rpc_types
 import lsp/capabilities
 import lsp/text_document
 
-pub type Node {
-  Node(ident: String)
-}
-
-pub type ParseSubject {
-  Updated(nodes: List(Node))
-}
-
 pub type LspServer {
   LspServer(
     root_path: String,
@@ -32,11 +24,11 @@ pub type LspMethod {
     capabilities: capabilities.Capabilities,
   )
   Initialized(name: String)
-  DidSave(name: String, document: text_document.TextDocumentIdentifier)
+  DidSave(name: String, document_ident: text_document.TextDocumentIdentifier)
 }
 
 pub fn new_did_save(params: text_document.TextDocumentIdentifier) {
-  DidSave(name: "textDocument/didSave", document: params)
+  DidSave(name: "textDocument/didSave", document_ident: params)
 }
 
 pub fn new_initialize(
