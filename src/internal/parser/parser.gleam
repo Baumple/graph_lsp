@@ -43,14 +43,16 @@ fn advance_acc(
     let #(c, rest) = pooped
     // If the condition is met, advance the lexer, otherwise return current
     // state
-    bool.guard(
+    bool.lazy_guard(
       when: condition(c),
-      return: advance_acc(
-        Lexer(..lexer, data: rest, cursor: lexer.cursor + 1),
-        while: condition,
-        with: acc <> c,
-      ),
-      otherwise: fn() { #(acc <> c, lexer) },
+      return: fn() {
+        advance_acc(
+          Lexer(..lexer, data: rest, cursor: lexer.cursor + 1),
+          while: condition,
+          with: acc <> c,
+        )
+      },
+      otherwise: fn() { #(acc, lexer) },
     )
     |> Ok
   })
@@ -72,7 +74,7 @@ pub fn skip_whitespace(lexer: Lexer) -> Lexer {
 }
 
 /// Pop a grapheme from the lexer's data (error on empty)
-/// checks whether a given string consists of digts only
+/// checks whether a given string consists of digits only
 pub fn is_num(s: String) -> Bool {
   s
   |> string.to_graphemes
@@ -89,7 +91,7 @@ pub fn is_special(c: String) -> Bool {
   c
   |> string.first
   |> result.map(fn(c) {
-    bool.negate(is_alpha(c) || is_num(c)) || is_whitespace(c)
+    bool.negate(is_alpha(c) || is_num(c) || is_whitespace(c))
   })
   |> result.unwrap(or: False)
 }
@@ -116,12 +118,8 @@ pub fn is_alpha(c: String) -> Bool {
 fn parse_num(lexer: Lexer) -> #(Token, Lexer) {
   let #(text, lexer) = advance(lexer, while: is_num)
 
-  int.parse(text)
-  |> result.map(fn(num) { #(Number(text: text, value: num), lexer) })
-  |> result.map_error(fn(_) {
-    panic as { "Illegal characters where an integer was expected: " <> text }
-  })
-  |> result.unwrap_both
+  let parsed = int.parse(text)
+  #(Number(text: text, value: result.unwrap(parsed, or: 0)), lexer)
 }
 
 fn parse_special(lexer: Lexer) -> #(Token, Lexer) {
@@ -149,27 +147,31 @@ pub fn next_token(lexer: Lexer) -> #(Option(Token), Lexer) {
   case c {
     Ok(c) ->
       {
-        use <- bool.guard(is_num(c), parse_num(lexer))
-        bool.guard(
+        use <- bool.lazy_guard(when: is_num(c), return: fn() {
+          parse_num(lexer)
+        })
+        bool.lazy_guard(
           when: is_special(c),
-          return: parse_special(lexer),
+          return: fn() { parse_special(lexer) },
           otherwise: fn() { parse_alpha(lexer) },
         )
       }
-      |> fn(a: #(Token, Lexer)) { #(Some(a.0), a.1) }
+      |> fn(res: #(Token, Lexer)) { #(Some(res.0), res.1) }
     _ -> #(None, lexer)
   }
 }
 
 pub fn tokens_to_list(lexer: Lexer) -> List(Token) {
-  todo
+  case next_token(lexer) {
+    #(Some(token), lexer) -> [token, ..tokens_to_list(lexer)]
+    #(None, _) -> []
+  }
 }
 
-pub fn parse_file(uri: String) -> Result(List(String), error.Error) {
+pub fn parse_file(uri: String) -> Result(List(Token), error.Error) {
   case simplifile.read(uri) {
     Ok(text) -> {
-      let tokens = new_lexer(text) |> tokens_to_list
-      todo
+      new_lexer(text) |> tokens_to_list |> Ok
     }
     Error(err) -> Error(error.io_error("Could not read updated file", err))
   }
