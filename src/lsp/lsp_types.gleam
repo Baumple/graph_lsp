@@ -1,4 +1,5 @@
-import internal/rpc/rpc_types
+import error
+import gleam/option.{type Option}
 import lsp/capabilities
 import lsp/text_document
 
@@ -43,7 +44,47 @@ pub fn new_initialized() -> LspMethod {
   Initialized("initialized")
 }
 
-pub type LspMessage {
-  LspRequest(rpc_request: rpc_types.RpcMessage, method: LspMethod)
-  LspResponse(rpc_response: rpc_types.RpcMessage)
+pub type LspId {
+  String(String)
+  Integer(Int)
+}
+
+pub type LspError {
+  LspError(code: Int, message: String, data: Option(error.Error))
+}
+
+pub type ClientInfo {
+  ClientInfo(name: String, version: Option(String))
+}
+
+pub type LspParams {
+  HoverParams(
+    /// Text document URI
+    text_document: String,
+    position: #(Int, Int),
+  )
+  InitializeParams(
+    process_id: Option(Int),
+    client_info: Option(ClientInfo),
+    locale: Option(String),
+    root_path: Option(String),
+    initialization_options: Option(dynamic.Dynamic),
+    capabilities: ClientCapabilities,
+    trace: dynamic.Dynamic,
+    workspace_folders: Option(List(WorkspaceFolder))
+  )
+}
+
+pub type LspResult {
+  HoverResult(value: String)
+}
+
+pub type Message {
+  Request(id: LspId, method: String, params: Option(LspParams))
+  Notification(method: String, params: Option(LspParams))
+  Response(
+    id: Option(LspId),
+    result: Option(LspResult),
+    error: Option(LspError),
+  )
 }
