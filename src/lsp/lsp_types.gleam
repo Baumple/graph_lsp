@@ -1,6 +1,9 @@
 import error
-import gleam/option.{type Option}
+import gleam/dynamic
+import gleam/option.{type Option, None}
 import lsp/capabilities
+import lsp/client_capabilities
+import lsp/server_capabilities
 import lsp/text_document
 
 pub type LspServer {
@@ -24,7 +27,6 @@ pub type LspMethod {
     root_uri: String,
     capabilities: capabilities.Capabilities,
   )
-  Initialized(name: String)
   DidSave(name: String, document_ident: text_document.TextDocumentIdentifier)
 }
 
@@ -40,8 +42,8 @@ pub fn new_initialize(
   Initialize("initialize", root_path, root_uri, capabilities)
 }
 
-pub fn new_initialized() -> LspMethod {
-  Initialized("initialized")
+pub fn new_initialized() -> Notification {
+  Initialized(method: "initialized", params: None)
 }
 
 pub type LspId {
@@ -69,22 +71,30 @@ pub type LspParams {
     locale: Option(String),
     root_path: Option(String),
     initialization_options: Option(dynamic.Dynamic),
-    capabilities: ClientCapabilities,
+    capabilities: client_capabilities.ClientCapabilities,
     trace: dynamic.Dynamic,
-    workspace_folders: Option(List(WorkspaceFolder))
+    // workspace_folders: Option(List(WorkspaceFolder)),
   )
 }
 
 pub type LspResult {
   HoverResult(value: String)
+  InitializeResult(
+    capabilites: server_capabilities.ServerCapabilities,
+    server_info: Option(ServerInfo),
+  )
 }
 
 pub type Message {
+  Notification(Notification)
   Request(id: LspId, method: String, params: Option(LspParams))
-  Notification(method: String, params: Option(LspParams))
   Response(
     id: Option(LspId),
     result: Option(LspResult),
     error: Option(LspError),
   )
+}
+
+pub type Notification {
+  Initialized(method: String, params: Option(LspParams))
 }
