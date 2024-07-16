@@ -1,4 +1,3 @@
-
 /// IO devices for erlang
 pub type StandardIO {
   StandardIO

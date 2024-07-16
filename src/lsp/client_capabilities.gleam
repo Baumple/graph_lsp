@@ -13,8 +13,8 @@ pub type TextDocumentClientCapabilities {
 
 pub type CompletionClientCapabilities {
   CompletionClientCapabilites(
-    completion_item: CompletionItem,
-    completion_item_kind: CompletionItemKind,
+    completion_item: Option(CompletionItem),
+    completion_item_kind: Option(CompletionItemKind),
   )
 }
 
@@ -35,6 +35,5 @@ pub type TextDocumentSyncClientCapabilities {
     will_save: Option(Bool),
     will_save_wait_until: Option(Bool),
     did_save: Option(Bool),
-    deez_nuts: Bool,
   )
 }
