@@ -84,6 +84,6 @@ pub fn client_error(msg: a) -> Error {
   ClientError(code: client_error_received_code, msg: pprint.format(msg))
 }
 
-pub fn invalid_request(msg: a) -> Error {
-  InvalidRequest(code: invalid_request_code, msg: pprint.format(msg))
+pub fn invalid_request(msg: String) -> Error {
+  InvalidRequest(code: invalid_request_code, msg: msg)
 }

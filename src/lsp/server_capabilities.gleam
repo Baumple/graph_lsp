@@ -1,7 +1,7 @@
 import gleam/option.{type Option}
 
-pub type SafeOptions {
-  SafeOptions
+pub type SaveOptions {
+  SaveOptions
   Bool(Bool)
 }
 
@@ -36,6 +36,6 @@ pub type TextDocumentSyncOptions {
     change: Option(Bool),
     will_save: Option(Bool),
     will_save_wait_until: Option(Bool),
-    save: Option(SafeOptions),
+    save: Option(SaveOptions),
   )
 }

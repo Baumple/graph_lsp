@@ -1,24 +1,6 @@
-import error
 import gleam/dynamic
-import gleam/result
 import lsp/client_capabilities as client
 import lsp/lsp_types
-import pprint
-
-pub fn decode_initalize_params(
-  params: dynamic.Dynamic,
-) -> Result(lsp_types.LspParams, error.Error) {
-  params
-  |> dynamic.decode5(
-    lsp_types.InitializeParams,
-    dynamic.optional_field("processId", dynamic.int),
-    dynamic.optional_field("clientInfo", decode_client_info),
-    dynamic.optional_field("locale", dynamic.string),
-    dynamic.optional_field("rootPath", dynamic.string),
-    dynamic.field("capabilities", decode_client_capabilities),
-  )
-  |> result.map_error(fn(err) { error.parse_error(pprint.format(err)) })
-}
 
 pub fn decode_client_info(
   client_info,
