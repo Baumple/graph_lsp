@@ -1,14 +1,14 @@
 import error
 import gleam/dynamic
-import gleam/int
 import gleam/io
+import gleam/int
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/pair
 import gleam/result
 import gleam/string
-import internal/decoder/general_decoder
-import internal/encoder/general_encoder
+import internal/decoder
+import internal/encoder
 import internal/standard_io
 import lsp/lsp_types
 import lsp/server_capabilities
@@ -87,7 +87,7 @@ fn server_from_init(
         )
 
       lsp_types.LspResponse(id: id, result: Some(result), error: None)
-      |> general_encoder.encode_lsp_message
+      |> encoder.encode_lsp_message
       |> json.to_string
       |> create_message
       |> io.println
@@ -198,7 +198,7 @@ fn parse_message(message: String) -> Result(lsp_types.LspMessage, error.Error) {
     RpcResponse(id: id, res: res, error: error) -> {
       case res, error {
         Some(res), None -> {
-          use parsed_result <- result.try(general_decoder.decode_lsp_result(res))
+          use parsed_result <- result.try(decoder.decode_lsp_result(res))
           Ok(lsp_types.LspResponse(
             id: id,
             error: None,
@@ -226,8 +226,7 @@ fn parse_request_params(
   params: dynamic.Dynamic,
 ) -> Result(Option(lsp_types.LspParams), error.Error) {
   case method {
-    "initialize" ->
-      general_decoder.decode_initalize_params(params) |> result.map(Some)
+    "initialize" -> decoder.decode_initalize_params(params) |> result.map(Some)
     _ -> Error(error.method_not_found("Method '" <> method <> "' not found"))
   }
 }

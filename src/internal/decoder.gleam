@@ -1,7 +1,10 @@
+import error
 import gleam/dynamic
+import gleam/result
 import lsp/client_capabilities as client
 import lsp/lsp_types
 
+// ============================== CLIENT DECODER ==============================
 pub fn decode_client_info(
   client_info,
 ) -> Result(lsp_types.ClientInfo, dynamic.DecodeErrors) {
@@ -79,4 +82,33 @@ pub fn decode_completion_item_kind(
     client.CompletionItemKind,
     dynamic.optional_field("valueSet", dynamic.list(dynamic.int)),
   )
+}
+
+pub fn decode_lsp_result(
+  res: dynamic.Dynamic,
+) -> Result(lsp_types.LspResult, error.Error) {
+  res
+  |> dynamic.any([
+    dynamic.decode1(
+      lsp_types.HoverResult,
+      dynamic.field("value", dynamic.string),
+    ),
+  ])
+  |> result.map_error(error.parse_error)
+}
+
+// ============================== UNIVERSAL DECODER ==============================
+pub fn decode_initalize_params(
+  params: dynamic.Dynamic,
+) -> Result(lsp_types.LspParams, error.Error) {
+  params
+  |> dynamic.decode5(
+    lsp_types.InitializeParams,
+    dynamic.optional_field("processId", dynamic.int),
+    dynamic.optional_field("clientInfo", decode_client_info),
+    dynamic.optional_field("locale", dynamic.string),
+    dynamic.optional_field("rootPath", dynamic.string),
+    dynamic.field("capabilities", decode_client_capabilities),
+  )
+  |> result.map_error(error.parse_error)
 }
