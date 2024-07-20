@@ -11,6 +11,10 @@ pub opaque type LspConfig {
   )
 }
 
+pub type LspEvent {
+  LspReceived(LspMessage)
+}
+
 // TODO: Make LspServer opaque -> only allow construction from the
 // new_from_init
 pub type LspServer {
@@ -52,12 +56,26 @@ pub type ClientInfo {
   ClientInfo(name: String, version: Option(String))
 }
 
+pub type TextDocumentIdentifier {
+  TextDocumentIdentifier(uri: String)
+}
+
+pub type Position {
+  Position(line: Int, character: Int)
+}
+
 pub type LspParams {
+  /// HoverParams
+  /// **Fields**
+  /// `* text_document - File name of request`
+  /// `* position - #(Row, Col) of location
   HoverParams(
     /// Text document URI
-    text_document: String,
-    position: #(Int, Int),
+    text_document: TextDocumentIdentifier,
+    position: Position,
   )
+
+  /// Initialization params
   InitializeParams(
     process_id: Option(Int),
     client_info: Option(ClientInfo),
@@ -70,8 +88,17 @@ pub type LspParams {
   )
 }
 
+pub type MarkupContent {
+  MarkupContent(kind: MarkupKind, value: String)
+}
+
+pub type MarkupKind {
+  PlainText
+  Markdown
+}
+
 pub type LspResult {
-  HoverResult(value: String)
+  HoverResult(contents: MarkupContent)
   InitializeResult(
     capabilities: server_capabilities.ServerCapabilities,
     server_info: Option(ServerInfo),

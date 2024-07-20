@@ -91,10 +91,63 @@ pub fn decode_lsp_result(
   |> dynamic.any([
     dynamic.decode1(
       lsp_types.HoverResult,
-      dynamic.field("value", dynamic.string),
+      dynamic.field("contents", decode_markup_contents),
     ),
   ])
   |> result.map_error(error.parse_error)
+}
+
+pub fn decode_markup_contents(
+  content: dynamic.Dynamic,
+) -> Result(lsp_types.MarkupContent, dynamic.DecodeErrors) {
+  content
+  |> dynamic.decode2(
+    lsp_types.MarkupContent,
+    dynamic.field("kind", decode_markup_kind),
+    dynamic.field("value", dynamic.string),
+  )
+}
+
+pub fn decode_markup_kind(
+  markup_kind,
+) -> Result(lsp_types.MarkupKind, dynamic.DecodeErrors) {
+  result.try(dynamic.string(markup_kind), fn(kind) {
+    Ok(case kind {
+      "markdown" -> lsp_types.Markdown
+      _ -> lsp_types.PlainText
+    })
+  })
+}
+
+pub fn decode_hover_params(
+  params: dynamic.Dynamic,
+) -> Result(lsp_types.LspParams, error.Error) {
+  params
+  |> dynamic.decode2(
+    lsp_types.HoverParams,
+    dynamic.field("textDocument", decode_text_document_identifier),
+    dynamic.field("position", decode_position),
+  )
+  |> result.map_error(error.parse_error)
+}
+
+pub fn decode_text_document_identifier(
+  td_ident,
+) -> Result(lsp_types.TextDocumentIdentifier, dynamic.DecodeErrors) {
+  td_ident
+  |> dynamic.decode1(
+    lsp_types.TextDocumentIdentifier,
+    dynamic.field("uri", dynamic.string),
+  )
+}
+
+pub fn decode_position(hover_pos) {
+  hover_pos
+  |> dynamic.decode2(
+    lsp_types.Position,
+    dynamic.field("line", dynamic.int),
+    dynamic.field("character", dynamic.int),
+  )
 }
 
 // ============================== UNIVERSAL DECODER ==============================

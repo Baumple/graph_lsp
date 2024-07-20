@@ -1,23 +1,42 @@
+import gleam/erlang/process
 import gleam/io
+import gleam/option.{type Option, None, Some}
+import gleam/otp/actor
 import gleam/result
 import lsp/lsp
-import lsp/lsp_types
+import lsp/lsp_types.{
+  type LspEvent, type LspServer, LspNotification, LspReceived, LspRequest,
+  LspResponse,
+}
 import pprint
 
-fn loop(state: lsp_types.LspServer) {
-  let msg = lsp.read_lsp_message()
-  case msg {
-    Ok(msg) ->
+fn loop(
+  event: LspEvent,
+  state: lsp_types.LspServer,
+) -> actor.Next(LspEvent, LspServer) {
+  case event {
+    LspReceived(msg) ->
       case msg {
-        lsp_types.LspNotification(method: "initialized", ..) -> {
+        LspNotification(method: "initialized", ..) -> {
           io.println_error("Connection established")
+        }
+        LspRequest(id: id, ..) -> {
+          LspResponse(
+            id: id,
+            result: Some(lsp_types.HoverResult(lsp_types.MarkupContent(
+              kind: lsp_types.PlainText,
+              value: "```gleam\n" <> "That must be a field\n" <> "```",
+            ))),
+            error: None,
+          )
+          |> lsp.send_message()
+          io.println_error("Hover resulted")
         }
         _ -> io.println_error("Not implemented: " <> pprint.format(msg))
       }
-    Error(err) -> io.println_error(pprint.format(err))
   }
 
-  loop(state)
+  actor.continue(state)
 }
 
 fn just_panic() {
@@ -33,5 +52,7 @@ pub fn main() {
   lsp.create_server()
   |> result.map_error(panic_text)
   |> result.lazy_unwrap(just_panic)
-  |> loop
+  |> lsp.start(loop)
+
+  process.sleep_forever()
 }

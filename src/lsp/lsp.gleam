@@ -1,9 +1,11 @@
 import error
 import gleam/dynamic
-import gleam/io
+import gleam/erlang/process
 import gleam/int
+import gleam/io
 import gleam/json
 import gleam/option.{type Option, None, Some}
+import gleam/otp/actor
 import gleam/pair
 import gleam/result
 import gleam/string
@@ -51,6 +53,16 @@ pub fn create_server() -> Result(lsp_types.LspServer, error.Error) {
   |> server_from_init(capabilities)
 }
 
+/// Checks for input in stdin, parses it and sends a message to the evaluator
+/// actor if it could parse succesful 
+fn read_process(server_subject: process.Subject(lsp_types.LspEvent)) {
+  case read_lsp_message() {
+    Ok(msg) -> process.send(server_subject, lsp_types.LspReceived(msg))
+    Error(err) -> io.println_error("Some error occured: " <> pprint.format(err))
+  }
+  read_process(server_subject)
+}
+
 /// Accepts a [Result] of an [lsp_types.LspMessage] and a type with
 /// server capabilities and then tries to construct an [lsp_types.LspServer]
 ///
@@ -87,10 +99,7 @@ fn server_from_init(
         )
 
       lsp_types.LspResponse(id: id, result: Some(result), error: None)
-      |> encoder.encode_lsp_message
-      |> json.to_string
-      |> create_message
-      |> io.println
+      |> send_message
 
       Ok(server)
     }
@@ -103,6 +112,20 @@ fn server_from_init(
   server
 }
 
+pub fn start(server: lsp_types.LspServer, handler_func) {
+  let assert Ok(subject) = actor.start(server, handler_func)
+  process.start(fn() { read_process(subject) }, True)
+}
+
+pub fn send_message(msg: lsp_types.LspMessage) {
+  msg
+  |> encoder.encode_lsp_message
+  |> json.to_string
+  |> create_message
+  |> io.println
+}
+
+// TODO: Move whole message reading/sending into own file
 fn create_message(json) {
   "Content-Length: " <> int.to_string(string.length(json)) <> "\r\n\r\n" <> json
 }
@@ -188,10 +211,10 @@ fn parse_message(message: String) -> Result(lsp_types.LspMessage, error.Error) {
     RpcNotification(method: method) ->
       Ok(lsp_types.LspNotification(method, params: None))
 
-    RpcRequest(id: id, method: method, params: params) -> {
-      use parsed_params <- result.try(parse_request_params(method, params))
-      Ok(lsp_types.LspRequest(id: id, method: method, params: parsed_params))
-    }
+    RpcRequest(id: id, method: method, params: params) ->
+      result.try(parse_request_params(method, params), fn(parsed_params) {
+        Ok(lsp_types.LspRequest(id: id, method: method, params: parsed_params))
+      })
 
     // TODO: Send response to task which awaits it -> it knows what type it
     // should parse
@@ -227,7 +250,19 @@ fn parse_request_params(
 ) -> Result(Option(lsp_types.LspParams), error.Error) {
   case method {
     "initialize" -> decoder.decode_initalize_params(params) |> result.map(Some)
+    "textDocument/" <> sub_method -> parse_document_method(sub_method, params)
     _ -> Error(error.method_not_found("Method '" <> method <> "' not found"))
+  }
+}
+
+fn parse_document_method(
+  sub_method: String,
+  params: dynamic.Dynamic,
+) -> Result(Option(lsp_types.LspParams), error.Error) {
+  case sub_method {
+    "hover" -> decoder.decode_hover_params(params) |> result.map(Some)
+    _ ->
+      Error(error.method_not_found("Method '" <> sub_method <> "' not found"))
   }
 }
 

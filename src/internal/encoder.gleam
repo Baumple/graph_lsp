@@ -93,8 +93,18 @@ pub fn encode_lsp_message(msg: lsp_types.LspMessage) -> json.Json {
 
 pub fn encode_result(res: lsp_types.LspResult) -> json.Json {
   case res {
-    lsp_types.HoverResult(value) ->
-      json.object([#("value", json.string(value))])
+    lsp_types.HoverResult(contents) -> {
+      let encoded_markup_contents =
+        json.object([
+          #("kind", json.string(case contents.kind {
+            lsp_types.PlainText -> "plaintext"
+            lsp_types.Markdown -> "markdown"
+          })),
+          #("value", json.string(contents.value)),
+        ])
+
+      json.object([#("contents", encoded_markup_contents)])
+    }
 
     lsp_types.InitializeResult(capabilities, server_info) ->
       json.object([
