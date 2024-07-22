@@ -1,5 +1,5 @@
 import error
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import lsp/client_capabilities
 import lsp/server_capabilities
 
@@ -17,13 +17,14 @@ pub type LspEvent {
 
 // TODO: Make LspServer opaque -> only allow construction from the
 // new_from_init
-pub type LspServer {
+pub type LspServer(a) {
   LspServer(
     root_path: String,
     root_uri: String,
     server_caps: server_capabilities.ServerCapabilities,
     client_caps: client_capabilities.ClientCapabilities,
     server_info: ServerInfo,
+    state: Option(a),
   )
 }
 
@@ -33,13 +34,14 @@ pub fn new_server(
   root_uri: String,
   server_caps: server_capabilities.ServerCapabilities,
   client_caps: client_capabilities.ClientCapabilities,
-) -> LspServer {
+) -> LspServer(a) {
   LspServer(
     root_path: root_path,
     root_uri: root_uri,
     server_caps: server_caps,
     client_caps: client_caps,
     server_info: ServerInfo("graph_lsp", "deez_nuts"),
+    state: None,
   )
 }
 
@@ -56,12 +58,65 @@ pub type ClientInfo {
   ClientInfo(name: String, version: Option(String))
 }
 
+pub type MarkupContent {
+  MarkupContent(kind: MarkupKind, value: String)
+}
+
+pub type MarkupKind {
+  PlainText
+  Markdown
+}
+
 pub type TextDocumentIdentifier {
   TextDocumentIdentifier(uri: String)
 }
 
 pub type Position {
   Position(line: Int, character: Int)
+}
+
+// TODO
+pub type TextEdit {
+  TextEdit
+}
+
+/// COMPLETION ==============================
+pub type CompletionList {
+  CompletionList(
+    /// List is not complete: further typing should result in recomputing the
+    /// list
+    is_incomplete: Bool,
+    items: List(CompletionItem),
+  )
+}
+
+
+pub type CompletionTriggerKind =
+  Int
+
+pub type CompletionContext {
+  CompletionContext(
+    trigger_kind: CompletionTriggerKind,
+    trigger_character: Option(String),
+  )
+}
+
+pub type InserTextFormat =
+  Int
+
+/// link: https://microsoft.github.io/language-server-protocol/specifications/specification-3-14/#completionItem
+pub type CompletionItem {
+  CompletionItem(
+    /// Text that is shown and inserted on selection
+    label: String,
+    kind: Option(Int),
+    detail: Option(String),
+    documentation: Option(MarkupContent),
+    deprecated: Option(Bool),
+    preselect: Option(Bool),
+    insert_text_format: Option(InserTextFormat),
+    text_edit: Option(TextEdit),
+  )
 }
 
 pub type LspParams {
@@ -75,6 +130,12 @@ pub type LspParams {
     position: Position,
   )
 
+  /// CompletionParams
+  CompletionParams(
+    text_document: TextDocumentIdentifier,
+    completion_context: Option(CompletionContext),
+  )
+
   /// Initialization params
   InitializeParams(
     process_id: Option(Int),
@@ -83,22 +144,12 @@ pub type LspParams {
     root_path: Option(String),
     // initialization_options: Option(dynamic.Dynamic),
     capabilities: client_capabilities.ClientCapabilities,
-    // trace: dynamic.Dynamic,
-    // workspace_folders: Option(List(WorkspaceFolder)),
   )
-}
-
-pub type MarkupContent {
-  MarkupContent(kind: MarkupKind, value: String)
-}
-
-pub type MarkupKind {
-  PlainText
-  Markdown
 }
 
 pub type LspResult {
   HoverResult(contents: MarkupContent)
+  CompletionResult(completion_list: CompletionList)
   InitializeResult(
     capabilities: server_capabilities.ServerCapabilities,
     server_info: Option(ServerInfo),

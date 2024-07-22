@@ -15,14 +15,17 @@ pub type ServerCapabilities {
     // TODO: HoverOptions instead of plain bool
     hover_provider: Option(Bool),
     document_symbol_provider: Option(Bool),
-    // TODO: diagnostic_provider: Option(DiagnosticOptions),
   )
+  // TODO: diagnostic_provider: Option(DiagnosticOptions),
 }
 
 pub type CompletionOptions {
   CompletionOptions(
+    /// The server provides support to resolve additional information for a
+    /// completion item
+    resolve_provider: Option(Bool),
+    /// Characters that trigger completion automatically
     trigger_characters: Option(List(String)),
-    completion_item: Option(ServerCompletionItem),
   )
 }
 

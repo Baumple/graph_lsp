@@ -3,6 +3,10 @@ import gleam/dynamic
 import gleam/result
 import lsp/client_capabilities as client
 import lsp/lsp_types
+import internal/rpc_types
+import gleam/json
+import gleam/io
+import pprint
 
 // ============================== CLIENT DECODER ==============================
 pub fn decode_client_info(
@@ -150,7 +154,6 @@ pub fn decode_position(hover_pos) {
   )
 }
 
-// ============================== UNIVERSAL DECODER ==============================
 pub fn decode_initalize_params(
   params: dynamic.Dynamic,
 ) -> Result(lsp_types.LspParams, error.Error) {
@@ -162,6 +165,86 @@ pub fn decode_initalize_params(
     dynamic.optional_field("locale", dynamic.string),
     dynamic.optional_field("rootPath", dynamic.string),
     dynamic.field("capabilities", decode_client_capabilities),
+  )
+  |> result.map_error(error.parse_error)
+}
+
+pub fn decode_completion_params(
+  params: dynamic.Dynamic,
+) -> Result(lsp_types.LspParams, error.Error) {
+  params
+  |> dynamic.decode2(
+    lsp_types.CompletionParams,
+    dynamic.field("textDocument", decode_text_document_identifier),
+    dynamic.optional_field("context", decode_completion_context),
+  )
+  |> result.map_error(error.parse_error)
+}
+
+pub fn decode_completion_context(
+  context: dynamic.Dynamic,
+) -> Result(lsp_types.CompletionContext, dynamic.DecodeErrors) {
+  context
+  |> dynamic.decode2(
+    lsp_types.CompletionContext,
+    dynamic.field("triggerKind", dynamic.int),
+    dynamic.optional_field("triggerCharacter", dynamic.string),
+  )
+}
+
+pub fn decode_lsp_id(
+  id: dynamic.Dynamic,
+) -> Result(lsp_types.LspId, dynamic.DecodeErrors) {
+  id
+  |> dynamic.any([
+    dynamic.decode1(lsp_types.Integer, dynamic.int),
+    dynamic.decode1(lsp_types.String, dynamic.string),
+  ])
+}
+
+pub fn decode_rpc_request(
+  request: dynamic.Dynamic,
+) -> Result(rpc_types.RpcMessage, dynamic.DecodeErrors) {
+  request
+  |> dynamic.decode3(
+    rpc_types.RpcRequest,
+    dynamic.field("id", decode_lsp_id),
+    dynamic.field("method", dynamic.string),
+    dynamic.field("params", dynamic.dynamic),
+  )
+}
+
+pub fn decode_rpc_response(
+  response: dynamic.Dynamic,
+) -> Result(rpc_types.RpcMessage, dynamic.DecodeErrors) {
+  response
+  |> dynamic.decode3(
+    rpc_types.RpcResponse,
+    dynamic.field("id", decode_lsp_id),
+    dynamic.optional_field("error", dynamic.dynamic),
+    dynamic.optional_field("result", dynamic.dynamic),
+  )
+}
+
+pub fn decode_notification(
+  notification: dynamic.Dynamic,
+) -> Result(rpc_types.RpcMessage, dynamic.DecodeErrors) {
+  notification
+  |> dynamic.decode1(
+    rpc_types.RpcNotification,
+    dynamic.field("method", dynamic.string),
+  )
+}
+
+pub fn decode_lsp_message(
+  message: String,
+) -> Result(rpc_types.RpcMessage, error.Error) {
+  let request_or_response_decoder =
+    dynamic.any([decode_rpc_request, decode_rpc_response])
+
+  result.lazy_or(
+    json.decode(from: message, using: request_or_response_decoder),
+    fn() { json.decode(from: message, using: decode_notification) },
   )
   |> result.map_error(error.parse_error)
 }

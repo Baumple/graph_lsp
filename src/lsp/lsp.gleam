@@ -14,6 +14,7 @@ import internal/encoder
 import internal/standard_io
 import lsp/lsp_types
 import lsp/server_capabilities
+import internal/rpc_types.{RpcNotification, RpcRequest, RpcResponse}
 import pprint
 
 /// Creates [server_capabilities.ServerCapabilities] with all fields set to
@@ -32,10 +33,20 @@ fn new_server_capabilities() -> server_capabilities.ServerCapabilities {
 fn set_hover_provider(
   capabilities: server_capabilities.ServerCapabilities,
   hover_provider: Bool,
-) {
+) -> server_capabilities.ServerCapabilities {
   server_capabilities.ServerCapabilities(
     ..capabilities,
     hover_provider: Some(hover_provider),
+  )
+}
+
+fn set_completion_provider(
+  capabilities: server_capabilities.ServerCapabilities,
+  completion_options: server_capabilities.CompletionOptions,
+) -> server_capabilities.ServerCapabilities {
+  server_capabilities.ServerCapabilities(
+    ..capabilities,
+    completion_provider: Some(completion_options),
   )
 }
 
@@ -44,13 +55,27 @@ fn set_hover_provider(
 ///
 /// ## TODO:
 ///   * passing capabilities
-pub fn create_server() -> Result(lsp_types.LspServer, error.Error) {
+pub fn create_server() -> Result(lsp_types.LspServer(a), error.Error) {
   let capabilities =
     new_server_capabilities()
     |> set_hover_provider(True)
+    |> set_completion_provider(server_capabilities.CompletionOptions(
+      resolve_provider: None,
+      trigger_characters: Some(string.to_graphemes(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      )),
+    ))
 
   read_lsp_message()
   |> server_from_init(capabilities)
+}
+
+pub fn create_server_with_state(
+  state: a,
+) -> Result(lsp_types.LspServer(a), error.Error) {
+  result.try(create_server(), fn(server) {
+    Ok(lsp_types.LspServer(..server, state: Some(state)))
+  })
 }
 
 /// Checks for input in stdin, parses it and sends a message to the evaluator
@@ -76,7 +101,7 @@ fn read_process(server_subject: process.Subject(lsp_types.LspEvent)) {
 fn server_from_init(
   init_message: Result(lsp_types.LspMessage, error.Error),
   capabilities server: server_capabilities.ServerCapabilities,
-) -> Result(lsp_types.LspServer, error.Error) {
+) -> Result(lsp_types.LspServer(a), error.Error) {
   use init_message <- result.try(init_message)
   let server = case init_message {
     lsp_types.LspRequest(
@@ -112,7 +137,7 @@ fn server_from_init(
   server
 }
 
-pub fn start(server: lsp_types.LspServer, handler_func) {
+pub fn start(server: lsp_types.LspServer(a), handler_func) {
   let assert Ok(subject) = actor.start(server, handler_func)
   process.start(fn() { read_process(subject) }, True)
 }
@@ -128,21 +153,6 @@ pub fn send_message(msg: lsp_types.LspMessage) {
 // TODO: Move whole message reading/sending into own file
 fn create_message(json) {
   "Content-Length: " <> int.to_string(string.length(json)) <> "\r\n\r\n" <> json
-}
-
-type RpcMessage {
-  RpcNotification(method: String)
-  RpcRequest(
-    id: lsp_types.LspId,
-    method: String,
-    // temporary
-    params: dynamic.Dynamic,
-  )
-  RpcResponse(
-    id: lsp_types.LspId,
-    error: Option(dynamic.Dynamic),
-    res: Option(dynamic.Dynamic),
-  )
 }
 
 // rpc header looks as follows:
@@ -171,42 +181,7 @@ fn read_rpc_message() -> Result(String, error.Error) {
 // - Split into smaller functions
 // - Move into internal/decoder
 fn parse_message(message: String) -> Result(lsp_types.LspMessage, error.Error) {
-  let id_decoder =
-    dynamic.any([
-      dynamic.decode1(lsp_types.String, dynamic.string),
-      dynamic.decode1(lsp_types.Integer, dynamic.int),
-    ])
-
-  // WARN: Notification has to be decoded separately since it only consists of
-  // a subset of which the other variants also consist of
-  let message_decoder =
-    dynamic.any([
-      dynamic.decode3(
-        RpcRequest,
-        dynamic.field("id", id_decoder),
-        dynamic.field("method", dynamic.string),
-        dynamic.field("params", dynamic.dynamic),
-      ),
-      dynamic.decode3(
-        RpcResponse,
-        dynamic.field("id", id_decoder),
-        dynamic.optional_field("error", dynamic.dynamic),
-        dynamic.optional_field("result", dynamic.dynamic),
-      ),
-    ])
-
-  let notification_decoder =
-    dynamic.decode1(RpcNotification, dynamic.field("method", dynamic.string))
-
-  let decoded_message =
-    result.lazy_or(json.decode(from: message, using: message_decoder), fn() {
-      json.decode(from: message, using: notification_decoder)
-    })
-    |> result.map_error(fn(err) {
-      error.parse_error("Could not parse rpc message." <> pprint.format(err))
-    })
-
-  use decoded_message <- result.try(decoded_message)
+  use decoded_message <- result.try(decoder.decode_lsp_message(message))
   case decoded_message {
     RpcNotification(method: method) ->
       Ok(lsp_types.LspNotification(method, params: None))
@@ -249,7 +224,9 @@ fn parse_request_params(
   params: dynamic.Dynamic,
 ) -> Result(Option(lsp_types.LspParams), error.Error) {
   case method {
-    "initialize" -> decoder.decode_initalize_params(params) |> result.map(Some)
+    "initialize" ->
+      decoder.decode_initalize_params(params)
+      |> result.map(Some)
     "textDocument/" <> sub_method -> parse_document_method(sub_method, params)
     _ -> Error(error.method_not_found("Method '" <> method <> "' not found"))
   }
@@ -260,9 +237,16 @@ fn parse_document_method(
   params: dynamic.Dynamic,
 ) -> Result(Option(lsp_types.LspParams), error.Error) {
   case sub_method {
-    "hover" -> decoder.decode_hover_params(params) |> result.map(Some)
+    "hover" ->
+      decoder.decode_hover_params(params)
+      |> result.map(Some)
+    "completion" ->
+      decoder.decode_completion_params(params)
+      |> result.map(Some)
     _ ->
-      Error(error.method_not_found("Method '" <> sub_method <> "' not found"))
+      Error(error.method_not_found(
+        "Method 'textDocument/" <> sub_method <> "' not found",
+      ))
   }
 }
 
