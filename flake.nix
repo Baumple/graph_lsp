@@ -11,15 +11,16 @@
     , flake-utils
     , nix-gleam
     ,
-    }: (
+    }: 
+    (
       flake-utils.lib.eachDefaultSystem
         (system:
         let
           pkgs = import nixpkgs {
             inherit system;
             overlays = [
-              nix-gleam.overlays.default
-            ];
+              nix-gleam.overlays.latest
+              ];
           };
         in
         {

@@ -6,10 +6,6 @@
 ## Development
 
 **Todo**:
-- Multiple Actors:
-    1. Reading Input
-    2. Writing Output (listens for tasks)
-    3. Tasks
 
 ```sh
 gleam run   # Run the project

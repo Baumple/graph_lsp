@@ -5,8 +5,6 @@ import lsp/client_capabilities as client
 import lsp/lsp_types
 import internal/rpc_types
 import gleam/json
-import gleam/io
-import pprint
 
 // ============================== CLIENT DECODER ==============================
 pub fn decode_client_info(

@@ -1,5 +1,6 @@
 import gleam/erlang/process
 import gleam/io
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/otp/actor
 import gleam/result
@@ -9,7 +10,6 @@ import lsp/lsp_types.{
   LspResponse,
 }
 import pprint
-import lsp/builder/completion_builder as comp_builder
 
 fn md_string(data: String) -> lsp_types.MarkupContent {
   lsp_types.MarkupContent(
@@ -47,9 +47,11 @@ fn loop(
             result: Some(
               lsp_types.CompletionResult(lsp_types.CompletionList(
                 items: [
-                  comp_builder.new("test"),
-                  comp_builder.new("test2")
-                    |> comp_builder.set_documentation(md_string("Hello")),
+                  lsp_types.new_completion_item("test"),
+                  lsp_types.new_completion_item("test2")
+                    |> lsp_types.set_documentation(md_string("Hello")),
+                  lsp_types.new_completion_item("test3")
+                    |> lsp_types.set_deprecated(True),
                 ],
                 is_incomplete: False,
               )),
@@ -73,12 +75,32 @@ fn panic_text(m) {
   panic as { "Something fucked up: " <> pprint.format(m) }
 }
 
+fn completion_handler(
+  server: lsp_types.LspServer(List(String)),
+  id: lsp_types.LspId,
+  _params: lsp_types.LspParams,
+) -> #(lsp_types.LspServer(List(String)), lsp_types.LspMessage) {
+  let comp_res =
+    server.state
+    |> list.map(lsp_types.new_completion_item)
+    |> list.map(fn(item) {
+      lsp_types.set_documentation(
+        item,
+        md_string("Node with the name " <> item.label),
+      )
+    })
+    |> lsp_types.CompletionList(False, _)
+    |> lsp_types.CompletionResult
+
+  #(server, lsp_types.new_ok_response(id, comp_res))
+}
+
 pub fn main() {
   io.println_error("Starting server..")
-  lsp.create_server_with_state([])
+  lsp.create_server([])
   |> result.map_error(panic_text)
   |> result.lazy_unwrap(just_panic)
+  |> lsp.set_completion_handler(completion_handler)
   |> lsp.start(loop)
-
   process.sleep_forever()
 }

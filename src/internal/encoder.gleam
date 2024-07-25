@@ -1,8 +1,7 @@
 import error
 import gleam/json
-import lsp/lsp_types.{type CompletionItem, CompletionItem}
+import lsp/lsp_types
 import lsp/server_capabilities as server
-import gleam/option.{None, Some}
 
 // ============================== SERVER ENCODER ==============================
 pub fn encode_server_capabilities(caps: server.ServerCapabilities) -> json.Json {

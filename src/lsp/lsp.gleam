@@ -11,10 +11,10 @@ import gleam/result
 import gleam/string
 import internal/decoder
 import internal/encoder
+import internal/rpc_types.{RpcNotification, RpcRequest, RpcResponse}
 import internal/standard_io
 import lsp/lsp_types
 import lsp/server_capabilities
-import internal/rpc_types.{RpcNotification, RpcRequest, RpcResponse}
 import pprint
 
 /// Creates [server_capabilities.ServerCapabilities] with all fields set to
@@ -55,7 +55,9 @@ fn set_completion_provider(
 ///
 /// ## TODO:
 ///   * passing capabilities
-pub fn create_server() -> Result(lsp_types.LspServer(a), error.Error) {
+pub fn create_server(
+  initial_state: a,
+) -> Result(lsp_types.LspServer(a), error.Error) {
   let capabilities =
     new_server_capabilities()
     |> set_hover_provider(True)
@@ -67,15 +69,7 @@ pub fn create_server() -> Result(lsp_types.LspServer(a), error.Error) {
     ))
 
   read_lsp_message()
-  |> server_from_init(capabilities)
-}
-
-pub fn create_server_with_state(
-  state: a,
-) -> Result(lsp_types.LspServer(a), error.Error) {
-  result.try(create_server(), fn(server) {
-    Ok(lsp_types.LspServer(..server, state: Some(state)))
-  })
+  |> server_from_init(initial_state, capabilities)
 }
 
 /// Checks for input in stdin, parses it and sends a message to the evaluator
@@ -100,6 +94,7 @@ fn read_process(server_subject: process.Subject(lsp_types.LspEvent)) {
 /// ```
 fn server_from_init(
   init_message: Result(lsp_types.LspMessage, error.Error),
+  initial_state: a,
   capabilities server: server_capabilities.ServerCapabilities,
 ) -> Result(lsp_types.LspServer(a), error.Error) {
   use init_message <- result.try(init_message)
@@ -115,7 +110,14 @@ fn server_from_init(
     ) -> {
       // WARN: For now we do not support not having a root path
       let assert Some(root_path) = root_path
-      let server = lsp_types.new_server(root_path, root_path, server, client)
+      let server =
+        lsp_types.new_server(
+          root_path,
+          root_path,
+          server,
+          client,
+          initial_state,
+        )
 
       let result =
         lsp_types.InitializeResult(
@@ -136,6 +138,10 @@ fn server_from_init(
   }
   server
 }
+
+pub type CompletionHandler(a) =
+  fn(lsp_types.LspServer(a), lsp_types.LspParams) ->
+    #(lsp_types.LspServer(a), lsp_types.LspParams)
 
 pub fn start(server: lsp_types.LspServer(a), handler_func) {
   let assert Ok(subject) = actor.start(server, handler_func)

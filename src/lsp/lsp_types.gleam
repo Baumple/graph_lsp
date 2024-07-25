@@ -3,14 +3,6 @@ import gleam/option.{type Option, None, Some}
 import lsp/client_capabilities
 import lsp/server_capabilities
 
-pub opaque type LspConfig {
-  LspConfig(
-    root_path: Option(String),
-    root_uri: Option(String),
-    capabilities: server_capabilities.ServerCapabilities,
-  )
-}
-
 pub type LspEvent {
   LspReceived(LspMessage)
 }
@@ -24,7 +16,7 @@ pub type LspServer(a) {
     server_caps: server_capabilities.ServerCapabilities,
     client_caps: client_capabilities.ClientCapabilities,
     server_info: ServerInfo,
-    state: Option(a),
+    state: a,
   )
 }
 
@@ -34,6 +26,7 @@ pub fn new_server(
   root_uri: String,
   server_caps: server_capabilities.ServerCapabilities,
   client_caps: client_capabilities.ClientCapabilities,
+  initial_state: a,
 ) -> LspServer(a) {
   LspServer(
     root_path: root_path,
@@ -41,7 +34,7 @@ pub fn new_server(
     server_caps: server_caps,
     client_caps: client_caps,
     server_info: ServerInfo("graph_lsp", "deez_nuts"),
-    state: None,
+    state: initial_state,
   )
 }
 
@@ -90,7 +83,6 @@ pub type CompletionList {
   )
 }
 
-
 pub type CompletionTriggerKind =
   Int
 
@@ -119,6 +111,7 @@ pub type CompletionItem {
   )
 }
 
+/// Params for the LspMethods
 pub type LspParams {
   /// HoverParams
   /// **Fields**
@@ -162,6 +155,45 @@ pub type LspMessage {
   LspResponse(id: LspId, result: Option(LspResult), error: Option(error.Error))
 }
 
-pub type Notification {
-  Initialized(method: String, params: Option(LspParams))
+// ============================== BUILDER ==============================
+/// Creates a new [CompletionItem]
+pub fn new_completion_item(label: String) -> CompletionItem {
+  CompletionItem(label, None, None, None, None, None, None, None)
+}
+
+/// Set [CompletionItem] deprecated
+pub fn set_deprecated(
+  comp_item: CompletionItem,
+  deprecated: Bool,
+) -> CompletionItem {
+  CompletionItem(..comp_item, deprecated: Some(deprecated))
+}
+
+/// Set [CompletionItem] documentation
+pub fn set_documentation(
+  comp_item: CompletionItem,
+  documentation: MarkupContent,
+) -> CompletionItem {
+  CompletionItem(..comp_item, documentation: Some(documentation))
+}
+
+pub fn set_documentation_text(
+  comp_item,
+  documentation: String,
+) -> CompletionItem {
+  CompletionItem(
+    ..comp_item,
+    documentation: Some(MarkupContent(
+      kind: PlainText,
+      value: "```gleam\n" <> documentation <> "\n```",
+    )),
+  )
+}
+
+pub fn new_ok_response(id: LspId, res: LspResult) -> LspMessage {
+  LspResponse(id, Some(res), None)
+}
+
+pub fn new_err_response(id: LspId, err: error.Error) -> LspMessage {
+  LspResponse(id, None, Some(err))
 }
