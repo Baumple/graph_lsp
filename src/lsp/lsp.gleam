@@ -1,89 +1,97 @@
 import error
-import gleam/dynamic
+import gleam/dict
 import gleam/erlang/process
-import gleam/int
-import gleam/io
-import gleam/json
+import gleam/io as gleam_io
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
-import gleam/pair
 import gleam/result
-import gleam/string
-import internal/decoder
-import internal/encoder
-import internal/rpc_types.{RpcNotification, RpcRequest, RpcResponse}
-import internal/standard_io
-import lsp/lsp_types
+import internal/lsp_io
+import lsp/lsp_types.{type LspEventHandler}
 import lsp/server_capabilities
 import pprint
 
-/// Creates [server_capabilities.ServerCapabilities] with all fields set to
-/// None
-fn new_server_capabilities() -> server_capabilities.ServerCapabilities {
-  server_capabilities.ServerCapabilities(
-    completion_provider: None,
-    document_symbol_provider: None,
-    hover_provider: None,
-    text_document_sync: None,
+pub opaque type ServerConfig(a) {
+  ServerConfig(
+    initial_state: a,
+    server_caps: server_capabilities.ServerCapabilities,
+    hover_handler: Option(LspEventHandler(a)),
+    completion_handler: Option(LspEventHandler(a)),
+    did_save_handler: Option(LspEventHandler(a)),
   )
 }
 
-/// Updates the [hover_provider] field on
-/// [server_capabilities.ServerCapabilities] record
-fn set_hover_provider(
-  capabilities: server_capabilities.ServerCapabilities,
-  hover_provider: Bool,
-) -> server_capabilities.ServerCapabilities {
-  server_capabilities.ServerCapabilities(
-    ..capabilities,
-    hover_provider: Some(hover_provider),
+pub fn new_server(state initial_state: a) -> ServerConfig(a) {
+  ServerConfig(
+    initial_state,
+    server_capabilities.new_server_capabilities(),
+    None,
+    None,
+    None,
   )
 }
 
-fn set_completion_provider(
-  capabilities: server_capabilities.ServerCapabilities,
-  completion_options: server_capabilities.CompletionOptions,
-) -> server_capabilities.ServerCapabilities {
-  server_capabilities.ServerCapabilities(
-    ..capabilities,
-    completion_provider: Some(completion_options),
+/// Registers an event handler for the textDocument/hover lsp event
+/// Also updates the [server_capabilities.ServerCapabilities] record
+/// appropriately
+pub fn set_hover_handler(
+  config: ServerConfig(a),
+  handler: LspEventHandler(a),
+) -> ServerConfig(a) {
+  let capabilities =
+    server_capabilities.ServerCapabilities(
+      ..config.server_caps,
+      hover_provider: Some(True),
+    )
+  ServerConfig(
+    ..config,
+    hover_handler: Some(handler),
+    server_caps: capabilities,
   )
+}
+
+/// Register a handler for the "textDocument/completion" event.
+/// Also updates the [server_capabilities.ServerCapabilities] record
+/// appropriately
+pub fn set_completion_handler(
+  config: ServerConfig(a),
+  handler: LspEventHandler(a),
+  options: server_capabilities.CompletionOptions,
+) -> ServerConfig(a) {
+  let capabilities =
+    server_capabilities.ServerCapabilities(
+      ..config.server_caps,
+      completion_provider: Some(options),
+    )
+  ServerConfig(
+    ..config,
+    completion_handler: Some(handler),
+    server_caps: capabilities,
+  )
+}
+
+/// Set a handler for the didSave event
+/// Also updates the [server_capabilities.ServerCapabilities] record
+/// appropriately
+pub fn set_did_save_handler(
+  config: ServerConfig(a),
+  handler: LspEventHandler(a),
+) -> ServerConfig(a) {
+  ServerConfig(..config, did_save_handler: Some(handler))
 }
 
 /// Does the necessarry work to create an [LspServer] and then returns either
 /// the LspServer or an Error containing more information. 
-///
-/// ## TODO:
-///   * passing capabilities
 pub fn create_server(
   initial_state: a,
+  capabilities: server_capabilities.ServerCapabilities,
 ) -> Result(lsp_types.LspServer(a), error.Error) {
-  let capabilities =
-    new_server_capabilities()
-    |> set_hover_provider(True)
-    |> set_completion_provider(server_capabilities.CompletionOptions(
-      resolve_provider: None,
-      trigger_characters: Some(string.to_graphemes(
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-      )),
-    ))
-
-  read_lsp_message()
+  lsp_io.read_lsp_message()
   |> server_from_init(initial_state, capabilities)
 }
 
-/// Checks for input in stdin, parses it and sends a message to the evaluator
-/// actor if it could parse succesful 
-fn read_process(server_subject: process.Subject(lsp_types.LspEvent)) {
-  case read_lsp_message() {
-    Ok(msg) -> process.send(server_subject, lsp_types.LspReceived(msg))
-    Error(err) -> io.println_error("Some error occured: " <> pprint.format(err))
-  }
-  read_process(server_subject)
-}
-
-/// Accepts a [Result] of an [lsp_types.LspMessage] and a type with
-/// server capabilities and then tries to construct an [lsp_types.LspServer]
+/// Accepts a [Result] of an [lsp_types.LspMessage] and a record of
+/// [server_capabilities.ServerCapabilities] and then tries to construct an
+/// [lsp_types.LspServer]
 ///
 /// ## Example
 /// ```gleam
@@ -126,7 +134,7 @@ fn server_from_init(
         )
 
       lsp_types.LspResponse(id: id, result: Some(result), error: None)
-      |> send_message
+      |> lsp_io.send_message
 
       Ok(server)
     }
@@ -139,125 +147,65 @@ fn server_from_init(
   server
 }
 
-pub type CompletionHandler(a) =
-  fn(lsp_types.LspServer(a), lsp_types.LspParams) ->
-    #(lsp_types.LspServer(a), lsp_types.LspParams)
+/// Checks for input in stdin, parses it and sends a message to the evaluator
+/// actor if it could parse succesful 
+fn read_process(server_subject: process.Subject(lsp_types.LspEvent)) {
+  case lsp_io.read_lsp_message() {
+    Ok(msg) -> process.send(server_subject, lsp_types.LspReceived(msg))
+    Error(err) ->
+      gleam_io.println_error("Some error occured: " <> pprint.format(err))
+  }
+  read_process(server_subject)
+}
 
-pub fn start(server: lsp_types.LspServer(a), handler_func) {
-  let assert Ok(subject) = actor.start(server, handler_func)
+/// Waits for incoming [LspEvent]s and maps the provided
+/// [LspEventHandler] to them
+fn main_actor(
+  msg: lsp_types.LspEvent,
+  server: lsp_types.LspServer(a),
+) -> actor.Next(lsp_types.LspEvent, lsp_types.LspServer(a)) {
+  let lsp_types.LspReceived(msg) = msg
+  gleam_io.println_error("Received msg")
+  case msg {
+    lsp_types.LspRequest(
+      id: id,
+      method: "textDocument/hover",
+      params: Some(params),
+    ) -> {
+      gleam_io.println_error("hover")
+      let assert Some(handlers) = server.handler
+      let _ =
+        handlers
+        |> dict.get("hover")
+        |> result.map(fn(handler) {
+          let #(_, resp) = handler(server, id, params)
+          send_message(resp)
+        })
+      Nil
+    }
+    _ -> Nil
+  }
+  actor.continue(server)
+}
+
+pub fn start_with_main(server: lsp_types.LspServer(a), main_handler) {
+  let assert Ok(subject) = actor.start(server, main_handler)
   process.start(fn() { read_process(subject) }, True)
 }
 
+pub fn start_with_handlers(config config: ServerConfig(a)) {
+  let assert Ok(server) =
+    create_server(config.initial_state, config.server_caps)
+  let handler = case config.hover_handler {
+    Some(hover_handler) -> dict.new() |> dict.insert("hover", hover_handler)
+    None -> dict.new()
+  }
+
+  let server = lsp_types.LspServer(..server, handler: Some(handler))
+  let assert Ok(main_actor) = actor.start(server, main_actor)
+  process.start(fn() { read_process(main_actor) }, False)
+}
+
 pub fn send_message(msg: lsp_types.LspMessage) {
-  msg
-  |> encoder.encode_lsp_message
-  |> json.to_string
-  |> create_message
-  |> io.println
-}
-
-// TODO: Move whole message reading/sending into own file
-fn create_message(json) {
-  "Content-Length: " <> int.to_string(string.length(json)) <> "\r\n\r\n" <> json
-}
-
-// rpc header looks as follows:
-// Content-Length: xxxx\r\n
-// \r\n
-// ...
-fn read_rpc_message() -> Result(String, error.Error) {
-  let error = error.parse_error("Could not parse Content-Length in rpc header")
-  use length <- result.try(
-    standard_io.get_line()
-    |> string.split_once(":")
-    |> result.unwrap(or: #("", ""))
-    |> pair.second
-    |> string.trim
-    |> int.parse
-    |> result.replace_error(error.parse_error(
-      "Could not parse Content-Length in rpc header",
-    )),
-  )
-  // trimming \r\n
-  standard_io.get_bytes(2)
-  Ok(standard_io.get_bytes(length))
-}
-
-// TODO: 
-// - Split into smaller functions
-// - Move into internal/decoder
-fn parse_message(message: String) -> Result(lsp_types.LspMessage, error.Error) {
-  use decoded_message <- result.try(decoder.decode_lsp_message(message))
-  case decoded_message {
-    RpcNotification(method: method) ->
-      Ok(lsp_types.LspNotification(method, params: None))
-
-    RpcRequest(id: id, method: method, params: params) ->
-      result.try(parse_request_params(method, params), fn(parsed_params) {
-        Ok(lsp_types.LspRequest(id: id, method: method, params: parsed_params))
-      })
-
-    // TODO: Send response to task which awaits it -> it knows what type it
-    // should parse
-    RpcResponse(id: id, res: res, error: error) -> {
-      case res, error {
-        Some(res), None -> {
-          use parsed_result <- result.try(decoder.decode_lsp_result(res))
-          Ok(lsp_types.LspResponse(
-            id: id,
-            error: None,
-            result: Some(parsed_result),
-          ))
-        }
-        None, Some(error) -> {
-          Error(error.client_error(error))
-        }
-        Some(_), Some(_) ->
-          Error(error.invalid_request(
-            "Response can only contain a result OR an error. Not both!",
-          ))
-        _, _ ->
-          Error(error.invalid_request(
-            "Response did not contain a result nor an error.",
-          ))
-      }
-    }
-  }
-}
-
-fn parse_request_params(
-  method: String,
-  params: dynamic.Dynamic,
-) -> Result(Option(lsp_types.LspParams), error.Error) {
-  case method {
-    "initialize" ->
-      decoder.decode_initalize_params(params)
-      |> result.map(Some)
-    "textDocument/" <> sub_method -> parse_document_method(sub_method, params)
-    _ -> Error(error.method_not_found("Method '" <> method <> "' not found"))
-  }
-}
-
-fn parse_document_method(
-  sub_method: String,
-  params: dynamic.Dynamic,
-) -> Result(Option(lsp_types.LspParams), error.Error) {
-  case sub_method {
-    "hover" ->
-      decoder.decode_hover_params(params)
-      |> result.map(Some)
-    "completion" ->
-      decoder.decode_completion_params(params)
-      |> result.map(Some)
-    _ ->
-      Error(error.method_not_found(
-        "Method 'textDocument/" <> sub_method <> "' not found",
-      ))
-  }
-}
-
-pub fn read_lsp_message() -> Result(lsp_types.LspMessage, error.Error) {
-  use message <- result.try(read_rpc_message())
-  use lsp_message <- result.try(parse_message(message))
-  Ok(lsp_message)
+  lsp_io.send_message(msg)
 }

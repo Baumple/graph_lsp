@@ -4,11 +4,13 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/otp/actor
 import gleam/result
+import gleam/string
 import lsp/lsp
 import lsp/lsp_types.{
   type LspEvent, type LspServer, LspNotification, LspReceived, LspRequest,
   LspResponse,
 }
+import lsp/server_capabilities as server
 import pprint
 
 fn md_string(data: String) -> lsp_types.MarkupContent {
@@ -95,12 +97,48 @@ fn completion_handler(
   #(server, lsp_types.new_ok_response(id, comp_res))
 }
 
-pub fn main() {
-  io.println_error("Starting server..")
-  lsp.create_server([])
+fn hover_handler(
+  server: lsp_types.LspServer(List(String)),
+  id: lsp_types.LspId,
+  params: lsp_types.LspParams,
+) -> #(lsp_types.LspServer(List(String)), lsp_types.LspMessage) {
+  let assert lsp_types.HoverParams(text_document: _, position: _) = params
+
+  let result = lsp_types.HoverResult(md_string("This is a hover response!"))
+  #(server, lsp_types.new_ok_response(id, result))
+}
+
+// Testing only
+fn with_handlers() {
+  lsp.new_server([""])
+  |> lsp.set_hover_handler(hover_handler)
+  |> lsp.set_completion_handler(
+    completion_handler,
+    server.CompletionOptions(Some(False), Some(string.to_graphemes("abc"))),
+  )
+  |> lsp.start_with_handlers()
+  process.sleep_forever()
+}
+
+fn with_main() {
+  let caps =
+    server.new_server_capabilities()
+    |> server.set_hover_provider(True)
+    |> server.set_completion_provider(server.CompletionOptions(
+      resolve_provider: Some(False),
+      trigger_characters: Some(string.to_graphemes(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      )),
+    ))
+
+  lsp.create_server([], caps)
   |> result.map_error(panic_text)
   |> result.lazy_unwrap(just_panic)
-  |> lsp.set_completion_handler(completion_handler)
-  |> lsp.start(loop)
+  |> lsp.start_with_main(loop)
   process.sleep_forever()
+}
+
+pub fn main() {
+  with_main()
+  let _ = with_handlers()
 }

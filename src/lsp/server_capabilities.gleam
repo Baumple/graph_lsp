@@ -1,4 +1,4 @@
-import gleam/option.{type Option}
+import gleam/option.{type Option, Some, None}
 
 pub type SaveOptions {
   SaveOptions
@@ -40,5 +40,35 @@ pub type TextDocumentSyncOptions {
     will_save: Option(Bool),
     will_save_wait_until: Option(Bool),
     save: Option(SaveOptions),
+  )
+}
+
+/// Creates [ServerCapabilities] with all fields set to
+/// None
+pub fn new_server_capabilities() -> ServerCapabilities {
+  ServerCapabilities(
+    completion_provider: None,
+    document_symbol_provider: None,
+    hover_provider: None,
+    text_document_sync: None,
+  )
+}
+
+/// Updates the [hover_provider] field on
+/// [ServerCapabilities] record
+pub fn set_hover_provider(
+  capabilities: ServerCapabilities,
+  hover_provider: Bool,
+) -> ServerCapabilities {
+  ServerCapabilities(..capabilities, hover_provider: Some(hover_provider))
+}
+
+pub fn set_completion_provider(
+  capabilities: ServerCapabilities,
+  completion_options: CompletionOptions,
+) -> ServerCapabilities {
+  ServerCapabilities(
+    ..capabilities,
+    completion_provider: Some(completion_options),
   )
 }

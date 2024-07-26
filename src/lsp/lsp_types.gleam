@@ -1,4 +1,5 @@
 import error
+import gleam/dict
 import gleam/option.{type Option, None, Some}
 import lsp/client_capabilities
 import lsp/server_capabilities
@@ -6,6 +7,9 @@ import lsp/server_capabilities
 pub type LspEvent {
   LspReceived(LspMessage)
 }
+
+pub type LspEventHandler(a) =
+  fn(LspServer(a), LspId, LspParams) -> #(LspServer(a), LspMessage)
 
 // TODO: Make LspServer opaque -> only allow construction from the
 // new_from_init
@@ -17,6 +21,7 @@ pub type LspServer(a) {
     client_caps: client_capabilities.ClientCapabilities,
     server_info: ServerInfo,
     state: a,
+    handler: Option(dict.Dict(String, LspEventHandler(a))),
   )
 }
 
@@ -35,6 +40,7 @@ pub fn new_server(
     client_caps: client_caps,
     server_info: ServerInfo("graph_lsp", "deez_nuts"),
     state: initial_state,
+    handler: None,
   )
 }
 

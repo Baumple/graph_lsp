@@ -19,8 +19,8 @@
           pkgs = import nixpkgs {
             inherit system;
             overlays = [
-              nix-gleam.overlays.latest
-              ];
+              nix-gleam.overlays.default
+            ];
           };
         in
         {
