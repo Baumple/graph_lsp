@@ -69,49 +69,6 @@ fn panic_text(m) {
   panic as { "Something fucked up: " <> pprint.format(m) }
 }
 
-fn completion_handler(
-  server: lsp_types.LspServer(List(String)),
-  id: lsp_types.LspId,
-  _params: lsp_types.LspParams,
-) -> #(lsp_types.LspServer(List(String)), lsp_types.LspMessage) {
-  let comp_res =
-    server.state
-    |> list.map(lsp_types.new_completion_item)
-    |> list.map(fn(item) {
-      lsp_types.set_documentation(
-        item,
-        md_string("Node with the name " <> item.label),
-      )
-    })
-    |> lsp_types.CompletionList(False, _)
-    |> lsp_types.CompletionResult
-
-  #(server, lsp_types.new_ok_response(id, comp_res))
-}
-
-fn hover_handler(
-  server: lsp_types.LspServer(List(String)),
-  id: lsp_types.LspId,
-  params: lsp_types.LspParams,
-) -> #(lsp_types.LspServer(List(String)), lsp_types.LspMessage) {
-  let assert lsp_types.HoverParams(text_document: _, position: _) = params
-
-  let result = lsp_types.HoverResult(md_string("This is a hover response!"))
-  #(server, lsp_types.new_ok_response(id, result))
-}
-
-// Testing only
-fn with_handlers() {
-  lsp.new_server([""])
-  |> lsp.set_hover_handler(hover_handler)
-  |> lsp.set_completion_handler(
-    completion_handler,
-    server.CompletionOptions(Some(False), Some(string.to_graphemes("abc"))),
-  )
-  |> lsp.start_with_handlers()
-  process.sleep_forever()
-}
-
 fn with_main() {
   let caps =
     server_caps.new_server_capabilities()
@@ -132,5 +89,4 @@ fn with_main() {
 
 pub fn main() {
   with_main()
-  let _ = with_handlers()
 }
