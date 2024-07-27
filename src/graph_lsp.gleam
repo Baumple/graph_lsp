@@ -73,9 +73,65 @@ fn panic_text(m) {
   panic as { "Something fucked up: " <> pprint.format(m) }
 }
 
-pub fn main() {
-  io.println_error("Starting server..")
-  lsp.create_server_with_state([])
+fn completion_handler(
+  server: lsp_types.LspServer(List(String)),
+  id: lsp_types.LspId,
+  _params: lsp_types.LspParams,
+) -> #(lsp_types.LspServer(List(String)), lsp_types.LspMessage) {
+  let comp_res =
+    server.state
+    |> list.map(comp_item.new_completion_item)
+    |> list.map(fn(item) {
+      comp_item.set_documentation(
+        item,
+        markup.new_markdown("gleam", "Node with the name " <> item.label),
+      )
+    })
+    |> lsp_types.CompletionList(False, _)
+    |> lsp_types.CompletionResult
+
+  #(server, lsp_types.new_ok_response(id, comp_res))
+}
+
+fn hover_handler(
+  server: lsp_types.LspServer(List(String)),
+  id: lsp_types.LspId,
+  params: lsp_types.LspParams,
+) -> #(lsp_types.LspServer(List(String)), lsp_types.LspMessage) {
+  let assert lsp_types.HoverParams(text_document: _, position: _) = params
+
+  let result =
+    lsp_types.HoverResult(markup.new_markdown(
+      "gleam",
+      "This is a hover response!",
+    ))
+  #(server, lsp_types.new_ok_response(id, result))
+}
+
+// Testing only
+fn with_handlers() {
+  lsp.new_server([""])
+  |> lsp.set_hover_handler(hover_handler)
+  |> lsp.set_completion_handler(
+    completion_handler,
+    server_caps.CompletionOptions(Some(False), Some(string.to_graphemes("abc"))),
+  )
+  |> lsp.start_with_handlers()
+  process.sleep_forever()
+}
+
+fn with_main() {
+  let caps =
+    server_caps.new_server_capabilities()
+    |> server_caps.set_hover_provider(True)
+    |> server_caps.set_completion_provider(server_caps.CompletionOptions(
+      resolve_provider: Some(False),
+      trigger_characters: Some(string.to_graphemes(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      )),
+    ))
+
+  lsp.create_server([], caps)
   |> result.map_error(panic_text)
   |> result.lazy_unwrap(just_panic)
   |> lsp.start(loop)
