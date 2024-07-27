@@ -209,3 +209,10 @@ pub fn start_with_handlers(config config: ServerConfig(a)) {
 pub fn send_message(msg: lsp_types.LspMessage) {
   lsp_io.send_message(msg)
 }
+
+pub fn to_ok_response(
+  res: lsp_types.LspResult,
+  id: lsp_types.LspId,
+) -> lsp_types.LspMessage {
+  lsp_types.new_ok_response(id, res)
+}
