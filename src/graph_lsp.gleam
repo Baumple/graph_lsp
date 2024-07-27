@@ -3,7 +3,6 @@ import gleam/io
 import gleam/list
 import gleam/option.{Some}
 import gleam/otp/actor
-import gleam/result
 import gleam/string
 import lsp/builder/completion_item as comp_item
 import lsp/builder/markup_content as markup
@@ -37,7 +36,7 @@ fn loop(
         }
 
         LspRequest(id: id, method: "textDocument/completion", params: _) -> {
-          let completion_list =
+          let completion_result =
             server.state
             |> list.map(fn(field) {
               comp_item.new_completion_item(field)
@@ -47,11 +46,9 @@ fn loop(
               ))
             })
             |> lsp_types.CompletionList(is_incomplete: False)
+            |> lsp_types.CompletionResult
 
-          lsp_types.new_ok_response(
-            id,
-            lsp_types.CompletionResult(completion_list),
-          )
+          lsp_types.new_ok_response(id, completion_result)
           |> lsp.send_message
         }
         _ -> io.println_error("Not implemented: " <> pprint.format(msg))
@@ -60,17 +57,8 @@ fn loop(
   actor.continue(server)
 }
 
-fn just_panic() {
-  panic
-}
-
-fn panic_text(m) {
-  io.println_error("Somnethings fucky: " <> pprint.format(m))
-  panic as { "Something fucked up: " <> pprint.format(m) }
-}
-
 fn with_main() {
-  let caps =
+  let capabilities =
     server_caps.new_server_capabilities()
     |> server_caps.set_hover_provider(True)
     |> server_caps.set_completion_provider(server_caps.CompletionOptions(
@@ -80,10 +68,8 @@ fn with_main() {
       )),
     ))
 
-  lsp.create_server([], caps)
-  |> result.map_error(panic_text)
-  |> result.lazy_unwrap(just_panic)
-  |> lsp.start_with_main(loop)
+  let assert Ok(server) = lsp.create_server([], capabilities)
+  lsp.start_with_main(server, loop)
   process.sleep_forever()
 }
 
