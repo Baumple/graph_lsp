@@ -65,11 +65,17 @@ fn read_rpc_message() -> Result(String, error.Error) {
 fn parse_message(message: String) -> Result(lsp_types.LspMessage, error.Error) {
   use decoded_message <- result.try(decoder.decode_lsp_message(message))
   case decoded_message {
-    RpcNotification(method: method) ->
-      Ok(lsp_types.LspNotification(method, params: None))
+    RpcNotification(method: method, params: params) ->
+      case params {
+        Some(params) ->
+          result.map(parse_params(method, params), fn(params) {
+            lsp_types.LspNotification(method, params: params)
+          })
+        None -> Ok(lsp_types.LspNotification(method, params: None))
+      }
 
     RpcRequest(id: id, method: method, params: params) ->
-      result.try(parse_request_params(method, params), fn(parsed_params) {
+      result.try(parse_params(method, params), fn(parsed_params) {
         Ok(lsp_types.LspRequest(id: id, method: method, params: parsed_params))
       })
 
@@ -101,7 +107,7 @@ fn parse_message(message: String) -> Result(lsp_types.LspMessage, error.Error) {
   }
 }
 
-fn parse_request_params(
+fn parse_params(
   method: String,
   params: dynamic.Dynamic,
 ) -> Result(Option(lsp_types.LspParams), error.Error) {
@@ -124,6 +130,9 @@ fn parse_document_method(
       |> result.map(Some)
     "completion" ->
       decoder.decode_completion_params(params)
+      |> result.map(Some)
+    "didSave" ->
+      decoder.decode_did_save_text_document_params(params)
       |> result.map(Some)
     _ ->
       Error(error.method_not_found(

@@ -16,13 +16,12 @@ pub fn new_lexer(data: String) -> Lexer {
   Lexer(data, string.length(data), 0)
 }
 
-pub type Token {
+pub opaque type Token {
   Ident(text: String)
   Arrow(text: String)
   Number(text: String, value: Int)
   Bar(text: String)
   Illegal(text: String)
-  EOF
 }
 
 /// Advances the lexer while a given predicate returns true
@@ -175,4 +174,15 @@ pub fn parse_file(uri: String) -> Result(List(Token), error.Error) {
     }
     Error(err) -> Error(error.io_error("Could not read updated file", err))
   }
+}
+
+pub fn filter_ident(token: Token) -> Bool {
+  case token {
+    Ident(..) -> True
+    _ -> False
+  }
+}
+
+pub fn get_token_text(token: Token) -> String {
+  token.text
 }

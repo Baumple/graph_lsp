@@ -5,7 +5,7 @@ import lsp/client_capabilities
 import lsp/server_capabilities
 
 pub type LspEvent {
-  LspReceived(LspMessage)
+  LspReceived(Result(LspMessage, error.Error))
 }
 
 pub type LspEventHandler(a) =
@@ -146,6 +146,11 @@ pub type LspParams {
     root_path: Option(String),
     // initialization_options: Option(dynamic.Dynamic),
     capabilities: client_capabilities.ClientCapabilities,
+  )
+
+  DidSaveTextDocumentParams(
+    text_document: TextDocumentIdentifier,
+    text: Option(String),
   )
 }
 

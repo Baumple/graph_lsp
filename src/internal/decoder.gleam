@@ -1,10 +1,10 @@
 import error
 import gleam/dynamic
+import gleam/json
 import gleam/result
+import internal/rpc_types
 import lsp/client_capabilities as client
 import lsp/lsp_types
-import internal/rpc_types
-import gleam/json
 
 // ============================== CLIENT DECODER ==============================
 pub fn decode_client_info(
@@ -121,6 +121,18 @@ pub fn decode_markup_kind(
   })
 }
 
+pub fn decode_did_save_text_document_params(
+  did_save: dynamic.Dynamic,
+) -> Result(lsp_types.LspParams, error.Error) {
+  did_save
+  |> dynamic.decode2(
+    lsp_types.DidSaveTextDocumentParams,
+    dynamic.field("textDocument", decode_text_document_identifier),
+    dynamic.optional_field("text", dynamic.string),
+  )
+  |> result.map_error(error.parse_error)
+}
+
 pub fn decode_hover_params(
   params: dynamic.Dynamic,
 ) -> Result(lsp_types.LspParams, error.Error) {
@@ -228,9 +240,10 @@ pub fn decode_notification(
   notification: dynamic.Dynamic,
 ) -> Result(rpc_types.RpcMessage, dynamic.DecodeErrors) {
   notification
-  |> dynamic.decode1(
+  |> dynamic.decode2(
     rpc_types.RpcNotification,
     dynamic.field("method", dynamic.string),
+    dynamic.optional_field("params", dynamic.dynamic),
   )
 }
 

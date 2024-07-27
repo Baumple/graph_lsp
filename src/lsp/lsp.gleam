@@ -1,5 +1,4 @@
 import error
-import gleam/dict
 import gleam/erlang/process
 import gleam/io as gleam_io
 import gleam/option.{type Option, None, Some}
@@ -151,68 +150,70 @@ fn server_from_init(
 /// actor if it could parse succesful 
 fn read_process(server_subject: process.Subject(lsp_types.LspEvent)) {
   case lsp_io.read_lsp_message() {
-    Ok(msg) -> process.send(server_subject, lsp_types.LspReceived(msg))
+    Ok(msg) -> process.send(server_subject, lsp_types.LspReceived(Ok(msg)))
     Error(err) ->
       gleam_io.println_error("Some error occured: " <> pprint.format(err))
   }
   read_process(server_subject)
 }
 
-/// Waits for incoming [LspEvent]s and maps the provided
-/// [LspEventHandler] to them
-fn main_actor(
-  msg: lsp_types.LspEvent,
-  server: lsp_types.LspServer(a),
-) -> actor.Next(lsp_types.LspEvent, lsp_types.LspServer(a)) {
-  let lsp_types.LspReceived(msg) = msg
-  gleam_io.println_error("Received msg")
-  case msg {
-    lsp_types.LspRequest(
-      id: id,
-      method: "textDocument/hover",
-      params: Some(params),
-    ) -> {
-      gleam_io.println_error("hover")
-      let assert Some(handlers) = server.handler
-      let _ =
-        handlers
-        |> dict.get("hover")
-        |> result.map(fn(handler) {
-          let #(_, resp) = handler(server, id, params)
-          send_message(resp)
-        })
-      Nil
-    }
-    _ -> Nil
-  }
-  actor.continue(server)
-}
+// /// Waits for incoming [LspEvent]s and maps the provided
+// /// [LspEventHandler] to them
+// fn main_actor(
+//   msg: lsp_types.LspEvent,
+//   server: lsp_types.LspServer(a),
+// ) -> actor.Next(lsp_types.LspEvent, lsp_types.LspServer(a)) {
+//   let lsp_types.LspReceived(msg) = msg
+//   gleam_io.println_error("Received msg")
+//   case msg {
+//     lsp_types.LspRequest(
+//       id: id,
+//       method: "textDocument/hover",
+//       params: Some(params),
+//     ) -> {
+//       gleam_io.println_error("hover")
+//       let assert Some(handlers) = server.handler
+//       let _ =
+//         handlers
+//         |> dict.get("hover")
+//         |> result.map(fn(handler) {
+//           let #(_, resp) = handler(server, id, params)
+//           send_message(resp)
+//         })
+//       Nil
+//     }
+//     _ -> Nil
+//   }
+//   actor.continue(server)
+// }
+// 
+// 
+// pub fn start_with_handlers(config config: ServerConfig(a)) {
+//   let assert Ok(server) =
+//     create_server(config.initial_state, config.server_caps)
+//   let handler = case config.hover_handler {
+//     Some(hover_handler) -> dict.new() |> dict.insert("hover", hover_handler)
+//     None -> dict.new()
+//   }
+// 
+//   let server = lsp_types.LspServer(..server, handler: Some(handler))
+//   let assert Ok(main_actor) = actor.start(server, main_actor)
+//   process.start(fn() { read_process(main_actor) }, False)
+// }
 
 pub fn start_with_main(server: lsp_types.LspServer(a), main_handler) {
   let assert Ok(subject) = actor.start(server, main_handler)
   process.start(fn() { read_process(subject) }, True)
 }
 
-pub fn start_with_handlers(config config: ServerConfig(a)) {
-  let assert Ok(server) =
-    create_server(config.initial_state, config.server_caps)
-  let handler = case config.hover_handler {
-    Some(hover_handler) -> dict.new() |> dict.insert("hover", hover_handler)
-    None -> dict.new()
-  }
-
-  let server = lsp_types.LspServer(..server, handler: Some(handler))
-  let assert Ok(main_actor) = actor.start(server, main_actor)
-  process.start(fn() { read_process(main_actor) }, False)
-}
-
 pub fn send_message(msg: lsp_types.LspMessage) {
   lsp_io.send_message(msg)
 }
 
-pub fn to_ok_response(
-  res: lsp_types.LspResult,
-  id: lsp_types.LspId,
-) -> lsp_types.LspMessage {
-  lsp_types.new_ok_response(id, res)
+/// Updates the server state. Useful when piping.
+pub fn update_server_state(
+  state: a,
+  server: lsp_types.LspServer(a),
+) -> lsp_types.LspServer(a) {
+  lsp_types.LspServer(..server, state: state)
 }

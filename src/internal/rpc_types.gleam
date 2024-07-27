@@ -3,7 +3,7 @@ import gleam/dynamic
 import gleam/option.{type Option}
 
 pub type RpcMessage {
-  RpcNotification(method: String)
+  RpcNotification(method: String, params: Option(dynamic.Dynamic))
   RpcRequest(
     id: lsp_types.LspId,
     method: String,
