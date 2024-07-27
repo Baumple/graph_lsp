@@ -58,6 +58,9 @@ pub type ClientInfo {
 }
 
 pub type MarkupContent {
+  /// The MarkupContent literal represents a string value which content can be
+  /// displayed in different formats (`MarkupKind` -> Either `PlainText` or
+  /// `Markdown`).
   MarkupContent(kind: MarkupKind, value: String)
 }
 
@@ -163,39 +166,6 @@ pub type LspMessage {
 
 // ============================== BUILDER ==============================
 /// Creates a new [CompletionItem]
-pub fn new_completion_item(label: String) -> CompletionItem {
-  CompletionItem(label, None, None, None, None, None, None, None)
-}
-
-/// Set [CompletionItem] deprecated
-pub fn set_deprecated(
-  comp_item: CompletionItem,
-  deprecated: Bool,
-) -> CompletionItem {
-  CompletionItem(..comp_item, deprecated: Some(deprecated))
-}
-
-/// Set [CompletionItem] documentation
-pub fn set_documentation(
-  comp_item: CompletionItem,
-  documentation: MarkupContent,
-) -> CompletionItem {
-  CompletionItem(..comp_item, documentation: Some(documentation))
-}
-
-pub fn set_documentation_text(
-  comp_item,
-  documentation: String,
-) -> CompletionItem {
-  CompletionItem(
-    ..comp_item,
-    documentation: Some(MarkupContent(
-      kind: PlainText,
-      value: "```gleam\n" <> documentation <> "\n```",
-    )),
-  )
-}
-
 pub fn new_ok_response(id: LspId, res: LspResult) -> LspMessage {
   LspResponse(id, Some(res), None)
 }

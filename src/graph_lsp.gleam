@@ -1,28 +1,22 @@
 import gleam/erlang/process
 import gleam/io
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
+import lsp/builder/completion_item as comp_item
+import lsp/builder/markup_content as markup
 import lsp/lsp
 import lsp/lsp_types.{
   type LspEvent, type LspServer, LspNotification, LspReceived, LspRequest,
-  LspResponse,
 }
-import lsp/server_capabilities as server
+import lsp/server_capabilities as server_caps
 import pprint
-
-fn md_string(data: String) -> lsp_types.MarkupContent {
-  lsp_types.MarkupContent(
-    kind: lsp_types.Markdown,
-    value: "```gleam\n" <> data <> "\n```",
-  )
-}
 
 fn loop(
   event: LspEvent,
-  state: lsp_types.LspServer(List(String)),
+  server: lsp_types.LspServer(List(String)),
 ) -> actor.Next(LspEvent, LspServer(List(String))) {
   case event {
     LspReceived(msg) ->
@@ -32,40 +26,38 @@ fn loop(
         }
 
         LspRequest(id: id, method: "textDocument/hover", ..) -> {
-          LspResponse(
-            id: id,
-            result: Some(
-              lsp_types.HoverResult(md_string("Could be a node for all i know")),
-            ),
-            error: None,
+          lsp_types.new_ok_response(
+            id,
+            lsp_types.HoverResult(markup.new_markdown(
+              "gleam",
+              "Could be a node for all i know",
+            )),
           )
           |> lsp.send_message
         }
 
         LspRequest(id: id, method: "textDocument/completion", params: _) -> {
-          io.println_error("Got completion")
-          LspResponse(
-            id: id,
-            result: Some(
-              lsp_types.CompletionResult(lsp_types.CompletionList(
-                items: [
-                  lsp_types.new_completion_item("test"),
-                  lsp_types.new_completion_item("test2")
-                    |> lsp_types.set_documentation(md_string("Hello")),
-                  lsp_types.new_completion_item("test3")
-                    |> lsp_types.set_deprecated(True),
-                ],
-                is_incomplete: False,
-              )),
-            ),
-            error: None,
+          let completion_list =
+            server.state
+            |> list.map(fn(field) {
+              comp_item.new_completion_item(field)
+              |> comp_item.set_documentation(markup.new_markdown(
+                "gleam",
+                "Node: " <> field,
+              ))
+            })
+            |> lsp_types.CompletionList(is_incomplete: False)
+
+          lsp_types.new_ok_response(
+            id,
+            lsp_types.CompletionResult(completion_list),
           )
           |> lsp.send_message
         }
         _ -> io.println_error("Not implemented: " <> pprint.format(msg))
       }
   }
-  actor.continue(state)
+  actor.continue(server)
 }
 
 fn just_panic() {
@@ -122,9 +114,9 @@ fn with_handlers() {
 
 fn with_main() {
   let caps =
-    server.new_server_capabilities()
-    |> server.set_hover_provider(True)
-    |> server.set_completion_provider(server.CompletionOptions(
+    server_caps.new_server_capabilities()
+    |> server_caps.set_hover_provider(True)
+    |> server_caps.set_completion_provider(server_caps.CompletionOptions(
       resolve_provider: Some(False),
       trigger_characters: Some(string.to_graphemes(
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
