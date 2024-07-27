@@ -7,12 +7,14 @@ import gleam/result
 import gleam/string
 import lsp/builder/completion_item as comp_item
 import lsp/builder/markup_content as markup
+import lsp/builder/response
 import lsp/lsp
 import lsp/lsp_types.{
   type LspEvent, type LspServer, LspNotification, LspReceived, LspRequest,
 }
 import lsp/server_capabilities as server_caps
 import pprint
+import logging.{Info, Error}
 
 fn loop(
   event: LspEvent,
@@ -22,7 +24,7 @@ fn loop(
     LspReceived(msg) ->
       case msg {
         LspNotification(method: "initialized", ..) -> {
-          io.println_error("Connection established")
+          logging.log(Info, "Connection established.")
         }
 
         LspRequest(id: id, method: "textDocument/hover", ..) -> {
@@ -37,24 +39,24 @@ fn loop(
         }
 
         LspRequest(id: id, method: "textDocument/completion", params: _) -> {
-          let completion_list =
-            server.state
-            |> list.map(fn(field) {
-              comp_item.new_completion_item(field)
-              |> comp_item.set_documentation(markup.new_markdown(
-                "gleam",
-                "Node: " <> field,
-              ))
-            })
-            |> lsp_types.CompletionList(is_incomplete: False)
+          let comp_item_from_label = fn(field: String) {
+            comp_item.new_completion_item(field)
+            |> comp_item.set_documentation(markup.new_markdown(
+              "gleam",
+              "Node: " <> field,
+            ))
+          }
 
-          lsp_types.new_ok_response(
-            id,
-            lsp_types.CompletionResult(completion_list),
-          )
+          server.state
+          |> list.map(comp_item_from_label)
+          |> lsp_types.CompletionList(is_incomplete: False)
+          |> lsp_types.CompletionResult
+          |> response.from_result(id)
           |> lsp.send_message
         }
-        _ -> io.println_error("Not implemented: " <> pprint.format(msg))
+        _ -> {
+          logging.log(Error, "Not implemented: " <> pprint.format(msg))
+        }
       }
   }
   actor.continue(server)
@@ -88,5 +90,6 @@ fn with_main() {
 }
 
 pub fn main() {
+  logging.log(Info, "Starting server..")
   with_main()
 }
