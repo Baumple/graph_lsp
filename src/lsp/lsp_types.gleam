@@ -1,3 +1,4 @@
+//// Types that are used to communicate via lsp
 import error
 import gleam/dict
 import gleam/option.{type Option, None, Some}

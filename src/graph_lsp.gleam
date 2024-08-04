@@ -2,7 +2,7 @@ import error
 import gleam/erlang/process
 import gleam/io
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
@@ -13,8 +13,9 @@ import lsp/builder/markup_content as markup
 import lsp/builder/response
 import lsp/lsp
 import lsp/lsp_types.{
-  type LspEvent, type LspMessage, type LspServer, LspNotification, LspReceived,
-  LspRequest,
+  type LspEvent, type LspMessage, type LspServer, CompletionList,
+  CompletionResult, HoverResult, LspNotification, LspReceived, LspRequest,
+  LspServer,
 }
 import lsp/server_capabilities as server_caps
 import pprint
@@ -54,7 +55,7 @@ fn handle_message(
     LspRequest(id: id, method: "textDocument/hover", ..) -> {
       lsp_types.new_ok_response(
         id,
-        lsp_types.HoverResult(markup.new_markdown(
+        HoverResult(markup.new_markdown(
           "gleam",
           "Could be a node for all i know",
         )),
@@ -73,8 +74,8 @@ fn handle_message(
       }
       server.state
       |> list.map(comp_item_from_label)
-      |> lsp_types.CompletionList(is_incomplete: False)
-      |> lsp_types.CompletionResult
+      |> CompletionList(is_incomplete: False)
+      |> CompletionResult
       |> response.from_result(id)
       |> lsp.send_message
       server
@@ -88,7 +89,7 @@ fn handle_message(
 
     _ -> {
       logging.log(LogError, "Not implemented: " <> pprint.format(msg))
-      lsp_types.LspNotification(method: "error", params: option.None)
+      LspNotification(method: "error", params: option.None)
       |> lsp.send_message
       server
     }
@@ -97,7 +98,7 @@ fn handle_message(
 
 fn loop(
   event: LspEvent,
-  server: lsp_types.LspServer(List(String)),
+  server: LspServer(List(String)),
 ) -> actor.Next(LspEvent, LspServer(List(String))) {
   let LspReceived(msg) = event
   case msg {
@@ -112,10 +113,8 @@ pub fn main() {
     server_caps.new_server_capabilities()
     |> server_caps.set_hover_provider(True)
     |> server_caps.set_completion_provider(server_caps.CompletionOptions(
-      resolve_provider: Some(False),
-      trigger_characters: Some(string.to_graphemes(
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-      )),
+      resolve_provider: None,
+      trigger_characters: Some([]),
     ))
 
   let assert Ok(server) = lsp.create_server([], capabilities)

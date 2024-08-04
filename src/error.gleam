@@ -1,3 +1,4 @@
+//// Errors
 import gleam/dynamic
 import gleam/json
 import pprint
